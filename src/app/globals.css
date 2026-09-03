@@ -1,0 +1,274 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  background: #f6f8fc;
+  color: #0f1f47;
+}
+
+/* ---- live animated hero background: slow-panning gradient + drifting blobs ---- */
+@keyframes gradient-pan {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes blob-drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(4%, 6%) scale(1.08); }
+  66%      { transform: translate(-3%, -4%) scale(0.95); }
+}
+
+@keyframes blob-drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(-5%, 4%) scale(1.1); }
+  66%      { transform: translate(4%, -5%) scale(0.92); }
+}
+
+@keyframes blob-drift-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(-4%, -6%) scale(1.12); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- slow shimmer sweep across the hero's gradient headline text ---- */
+@keyframes text-shimmer {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* ---- gentle idle bob, used on module-card icons and decorative numerals ---- */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* ---- bouncing chevron scroll cue at the base of the hero ---- */
+@keyframes bounce-y {
+  0%, 100% { transform: translateY(0); opacity: 0.5; }
+  50%      { transform: translateY(6px); opacity: 1; }
+}
+
+/* ---- soft breathing glow ring, used to draw the eye to the primary CTA ---- */
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(126, 34, 206, 0.35); }
+  70%  { box-shadow: 0 0 0 10px rgba(126, 34, 206, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(126, 34, 206, 0); }
+}
+
+.animate-gradient-pan {
+  background-size: 200% 200%;
+  animation: gradient-pan 14s ease-in-out infinite;
+}
+
+.animate-blob-a { animation: blob-drift-a 16s ease-in-out infinite; }
+.animate-blob-b { animation: blob-drift-b 20s ease-in-out infinite; }
+.animate-blob-c { animation: blob-drift-c 12s ease-in-out infinite; }
+
+.animate-fade-up { animation: fade-up 0.7s ease-out both; }
+.animate-fade-up-delay-1 { animation: fade-up 0.7s ease-out 0.12s both; }
+.animate-fade-up-delay-2 { animation: fade-up 0.7s ease-out 0.24s both; }
+
+.animate-text-shimmer {
+  background-size: 200% auto;
+  animation: text-shimmer 5s linear infinite;
+}
+
+.animate-float { animation: float-y 3.6s ease-in-out infinite; }
+
+.animate-bounce-y { animation: bounce-y 1.8s ease-in-out infinite; }
+
+.animate-pulse-ring { animation: pulse-ring 2.6s ease-out infinite; }
+
+/* ---- animated mesh gradient blobs for section backgrounds ---- */
+@keyframes mesh-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(8%, 4%) scale(1.15); }
+  50%      { transform: translate(-3%, 8%) scale(0.9); }
+  75%      { transform: translate(-6%, -3%) scale(1.08); }
+}
+@keyframes mesh-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(-7%, -5%) scale(1.12); }
+  66%      { transform: translate(5%, 6%) scale(0.88); }
+}
+@keyframes mesh-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50%      { transform: translate(6%, -4%) scale(1.1) rotate(10deg); }
+}
+
+.animate-mesh-1 { animation: mesh-drift-1 18s ease-in-out infinite; }
+.animate-mesh-2 { animation: mesh-drift-2 22s ease-in-out infinite; }
+.animate-mesh-3 { animation: mesh-drift-3 15s ease-in-out infinite; }
+
+/* ---- subtle section separator glow line ---- */
+.glow-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(168,85,247,0.3) 30%, rgba(236,72,153,0.3) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-gradient-pan, .animate-blob-a, .animate-blob-b, .animate-blob-c,
+  .animate-fade-up, .animate-fade-up-delay-1, .animate-fade-up-delay-2,
+  .animate-marquee, .animate-border-spin,
+  .animate-text-shimmer, .animate-float, .animate-bounce-y, .animate-pulse-ring,
+  .animate-mesh-1, .animate-mesh-2, .animate-mesh-3 {
+    animation: none !important;
+  }
+}
+
+/* ---- scroll-reveal: JS toggles .is-visible once a section enters the viewport ---- */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---- flip-in variant of .reveal, used on the capability stat strip ---- */
+.reveal.flip-in {
+  transform: perspective(700px) rotateX(-65deg) translateY(10px);
+  transform-origin: top center;
+  transition: opacity 0.6s ease-out, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal.flip-in.is-visible {
+  transform: perspective(700px) rotateX(0deg) translateY(0);
+}
+
+/* ---- infinite marquee (trade ticker) ---- */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 22s linear infinite;
+}
+.animate-marquee-slow {
+  animation: marquee 38s linear infinite;
+}
+.marquee-pause:hover .animate-marquee,
+.marquee-pause:hover .animate-marquee-slow {
+  animation-play-state: paused;
+}
+
+/* ---- rotating conic-gradient border glow, used behind CTA buttons ---- */
+@keyframes border-spin {
+  to { transform: rotate(360deg); }
+}
+.glow-border {
+  position: relative;
+  isolation: isolate;
+}
+.glow-border::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from 0deg, #38bdf8, #fbbf24, #ec4899, #8b5cf6, #38bdf8);
+  animation: border-spin 3.5s linear infinite;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  z-index: -1;
+  opacity: 0.85;
+  transition: opacity 0.3s ease;
+}
+.glow-border:hover::before {
+  opacity: 1;
+}
+
+/* ---- AI Button Gradient & Shimmer Animations ---- */
+@keyframes btn-gradient-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-btn-gradient {
+  background-size: 250% 250%;
+  animation: btn-gradient-flow 4s ease infinite;
+}
+
+@keyframes ai-shimmer {
+  0% { transform: translateX(-150%) skewX(-25deg); }
+  50%, 100% { transform: translateX(250%) skewX(-25deg); }
+}
+
+.ai-shimmer-sweep {
+  animation: ai-shimmer 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes ai-pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.4), 0 0 30px rgba(217, 70, 239, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(168, 85, 247, 0.7), 0 0 50px rgba(217, 70, 239, 0.4), 0 0 10px rgba(56, 189, 248, 0.4);
+  }
+}
+
+.ai-glow-btn {
+  animation: ai-pulse-glow 3s ease-in-out infinite;
+}
+
+/* ---- Sparkle Floating Particles ---- */
+@keyframes float-sparkle {
+  0%, 100% { transform: translate(0, 0) scale(0.8); opacity: 0.4; }
+  50% { transform: translate(4px, -6px) scale(1.2); opacity: 1; }
+}
+
+.sparkle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 6px white;
+  pointer-events: none;
+}
+.sparkle-1 { top: 20%; left: 15%; animation: float-sparkle 2.2s infinite; }
+.sparkle-2 { top: 65%; left: 80%; animation: float-sparkle 2.8s infinite 0.5s; }
+.sparkle-3 { top: 30%; right: 20%; animation: float-sparkle 2.4s infinite 1s; }
+.sparkle-4 { bottom: 20%; left: 45%; animation: float-sparkle 3s infinite 1.5s; }
+
+/* ---- diagonal shine sweep on hover ---- */
+.shine {
+  position: relative;
+  overflow: hidden;
+}
+.shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(115deg, transparent, rgba(255,255,255,.6), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.65s ease;
+  pointer-events: none;
+}
+.shine:hover::after {
+  left: 130%;
+}
+
+/* ---- faint grain texture for the hero ---- */
+.grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trade Fill Rate 2026 · Milky Mist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand-dot">M</div>
+  <div>
+    <h1>Trade Fill Rate — 2026</h1>
+    <div class="sub">PO fulfilment across quick-commerce trades</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="meta" id="metaBox">loading…</div>
+  <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none">
+  <button class="btn solid" id="exportBtn">⭳ Export filtered CSV</button>
+</header>
+
+<div class="wrap">
+
+  <!-- Slicers -->
+  <div class="slicers" id="slicers">
+    <!-- slicer dropdowns injected by script.js -->
+    <div class="reset-slicer"><label>&nbsp;</label><button id="resetBtn">Reset filters</button></div>
+  </div>
+
+  <!-- Active filter summary — which slicers/date range are currently applied -->
+  <div class="active-filters" id="activeFilters"></div>
+
+  <!-- Hero + KPIs -->
+  <section class="hero">
+    <div class="hero-card">
+      <div class="eyebrow">Overall Fill Rate</div>
+      <div class="hero-fr">
+        <div class="fr-item">
+          <div class="big" id="heroFR">–<small>%</small></div>
+          <div class="fr-cap">by value</div>
+        </div>
+        <div class="fr-sep"></div>
+        <div class="fr-item">
+          <div class="big" id="heroFRqty">–<small>%</small></div>
+          <div class="fr-cap">by qty</div>
+        </div>
+      </div>
+      <div class="splitbar"><div class="fill" id="splitFill" style="width:0%"></div></div>
+      <div class="split-legend">
+        <span><span class="dot" style="background:var(--supply)"></span>Supplied <b id="splitSupplied">–</b></span>
+        <span><span class="dot" style="background:var(--gap)"></span>Gap <b id="splitGap">–</b></span>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi"><div class="k-label">PO Value</div><div class="k-val" id="kpiPO">–<span class="unit">₹L</span></div><div class="k-sub" id="kpiPOcr"></div></div>
+      <div class="kpi"><div class="k-label">GRN Value</div><div class="k-val" id="kpiGRN">–<span class="unit">₹L</span></div><div class="k-sub">received</div></div>
+      <div class="kpi accent-gap"><div class="k-label">Value Gap</div><div class="k-val" id="kpiGAP">–<span class="unit">₹L</span></div><div class="k-sub">not fulfilled</div></div>
+      <div class="kpi"><div class="k-label">PO Lines</div><div class="k-val" id="kpiLines">–</div><div class="k-sub" id="kpiFully">–% fully supplied</div></div>
+    </div>
+  </section>
+
+  <!-- Charts -->
+  <section class="grid">
+
+    
+
+    <div class="card span-12">
+      <h3>
+        Gap analysis — where the gap sits
+        <span class="chips" id="drillChips">
+          <button data-dim="sku" class="on">By SKU</button>
+          <button data-dim="city">By City</button>
+          <button data-dim="category">By Category</button>
+          <button data-dim="trade">By Trade</button>
+          <button data-dim="skucity">By SKU &times; City</button>
+          <button data-dim="date">By Date</button>
+        </span>
+        <span class="chips metric" id="metricChips">
+          <button data-metric="value" class="on">₹ Value</button>
+          <button data-metric="qty">Qty</button>
+        </span>
+      </h3>
+      <p class="hint" id="gapHint">Top 25 by value gap in the current selection · click a header to sort</p>
+      <div id="tableWrap"></div>
+    </div>
+
+  </section>
+
+  <div class="footnote" id="footnote"></div>
+
+</div>
+
+<!-- libs (CDN — needed only for charts / Excel loading) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- baked data (auto-loads on double-click; no server needed) -->
+<script src="data.js"></script>
+<script src="mmd-mapping.js"></script>
+<script src="sku-icon.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
