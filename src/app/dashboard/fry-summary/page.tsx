@@ -210,6 +210,28 @@ export default function FrySummaryPage() {
       [key]: !e[key],
     }));
 
+
+  const [tableMinW, setTableMinW] = useState<Record<TableKey, number>>({
+    city: 620,
+    sku: 620,
+    trade: 620,
+    region: 620,
+    depo: 620,
+  });
+
+  const TABLE_W_STEP = 80;
+  const TABLE_W_MIN = 400;
+  const TABLE_W_MAX = 2000;
+
+  const adjustWidth = (key: TableKey, delta: number) =>
+    setTableMinW((w) => ({
+      ...w,
+      [key]: Math.min(
+        TABLE_W_MAX,
+        Math.max(TABLE_W_MIN, w[key] + delta)
+      ),
+    }));
+
   const [depoPlatform, setDepoPlatform] = useState<number | null>(null);
 
   useEffect(() => {
@@ -997,13 +1019,7 @@ export default function FrySummaryPage() {
           return (
             <div
               key={t.key}
-              className={
-                "bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden " +
-                (ti === tables.length - 1 &&
-                tables.length % 2 === 1
-                  ? "lg:col-span-2"
-                  : "")
-              }
+              className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
             >
               <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-slate-800">
@@ -1043,6 +1059,31 @@ export default function FrySummaryPage() {
                         "s"}
                   </span>
 
+                  {/* Manual width +/- controls */}
+                  <span className="inline-flex items-center rounded-md border border-slate-300 overflow-hidden text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => adjustWidth(t.key, -TABLE_W_STEP)}
+                      disabled={tableMinW[t.key] <= TABLE_W_MIN}
+                      title="Decrease table width"
+                      className="px-2 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      −
+                    </button>
+                    <span className="px-2 py-1 border-x border-slate-300 text-slate-500 select-none tabular-nums">
+                      {tableMinW[t.key]}px
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => adjustWidth(t.key, TABLE_W_STEP)}
+                      disabled={tableMinW[t.key] >= TABLE_W_MAX}
+                      title="Increase table width"
+                      className="px-2 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      +
+                    </button>
+                  </span>
+
                   <button
                     type="button"
                     onClick={() =>
@@ -1069,7 +1110,10 @@ export default function FrySummaryPage() {
                     : "max-h-[46vh] overflow-auto"
                 }
               >
-                <table className="w-full min-w-[620px] text-xs">
+                <table
+                  className="w-full text-xs"
+                  style={{ minWidth: tableMinW[t.key] }}
+                >
                   <thead className="sticky top-0 z-10">
                     <tr className="text-left text-[11px] text-slate-600 bg-slate-100">
                       {t.key === "sku" ? (

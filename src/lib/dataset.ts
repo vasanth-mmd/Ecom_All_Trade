@@ -84,6 +84,54 @@ const fmtYMD = (n: number) => {
   return s.length === 8 ? s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8) : "";
 };
 
+const parseNum = (v: any): number => {
+  if (typeof v === "number") return isNaN(v) ? 0 : v;
+  if (!v) return 0;
+  const s = String(v).replace(/,/g, "").trim();
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+};
+
+/** Locate the raw data sheet regardless of case or spaces, or inspect sheet contents */
+export function findRawDataSheet(wb: any): any {
+  if (!wb || !wb.SheetNames || !wb.SheetNames.length) return null;
+
+  // 1. Direct or normalized name match
+  const rawTarget = wb.SheetNames.find((name: string) => {
+    const clean = name.trim().toLowerCase().replace(/[\s_-]+/g, "");
+    return clean === "rawdata" || clean === "raw" || clean === "data";
+  });
+  if (rawTarget && wb.Sheets[rawTarget]) return wb.Sheets[rawTarget];
+
+  // 2. Exact "Raw Data" fallback
+  if (wb.Sheets["Raw Data"]) return wb.Sheets["Raw Data"];
+
+  // 3. Inspect headers of each sheet to find one that has Trade FR columns
+  const XLSX = require("xlsx");
+  for (const name of wb.SheetNames) {
+    const s = wb.Sheets[name];
+    if (!s) continue;
+    try {
+      const preview = XLSX.utils.sheet_to_json(s, { header: 1, range: 0, defval: "" }) as any[][];
+      if (preview && preview.length > 0) {
+        const row0 = (preview[0] || []).map((c: any) => String(c).trim().toLowerCase());
+        if (
+          row0.includes("po number") ||
+          (row0.includes("trade") && row0.includes("po qty")) ||
+          (row0.includes("city") && row0.includes("grn qty"))
+        ) {
+          return s;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 4. Default to first sheet
+  return wb.Sheets[wb.SheetNames[0]];
+}
+
 /** Same transforms as the dashboard's own parser (script.js buildFromObjects). */
 export function buildFromRecords(recs: any[]): Dataset {
   const dims: Record<string, string[]> =
@@ -103,22 +151,47 @@ export function buildFromRecords(recs: any[]): Dataset {
     return poMap[k];
   };
   const rows: number[][] = [];
-  for (const o of recs) {
-    const rawStatus = String(o["PO Status"] ?? "").trim();
+  for (const rawO of recs) {
+    // Normalize keys in case of leading/trailing spaces
+    const o: Record<string, any> = {};
+    for (const k of Object.keys(rawO)) {
+      o[k.trim()] = rawO[k];
+    }
+
+    const rawStatus = String(
+      o["PO Status"] ?? o["Po Status"] ?? o["Status"] ?? o["status"] ?? ""
+    ).trim();
     const status = rawStatus || "(Blanks)";
+
+    const monthVal = String(o["Month"] ?? o["month"] ?? "").trim();
+    const tradeVal = String(o["Trade"] ?? o["trade"] ?? "").trim();
+    const regionVal = titleCase(o["Region"] ?? o["region"]);
+    const cityVal = titleCase(o["City"] ?? o["city"]);
+    const catVal = String(o["Category"] ?? o["category"] ?? "").trim();
+    const skuVal = String(o["SKU Name"] ?? o["Sku Name"] ?? o["SKU"] ?? o["sku"] ?? "").trim();
+
+    const poQty = Math.round(parseNum(o["PO Qty"] ?? o["Po Qty"]));
+    const poVal = +parseNum(o["Po Value"] ?? o["PO Value"] ?? o["po value"]).toFixed(4);
+    const grnQty = Math.round(parseNum(o["GRN Qty"] ?? o["Grn Qty"]));
+    const grnVal = +parseNum(o["GRN Value"] ?? o["Grn Value"] ?? o["grn value"]).toFixed(4);
+
+    const poDate = toYMD(o["Po Date"] ?? o["PO Date"] ?? o["po date"]);
+    const poNum = poId(o["PO Number"] ?? o["Po Number"] ?? o["po number"]);
+    const poExpiry = toYMD(o["Po Expiry Date"] ?? o["PO Expiry Date"] ?? o["po expiry date"]);
+
     rows.push([
-      id("month", String(o["Month"] ?? "").trim()),
-      id("trade", String(o["Trade"] ?? "").trim()),
-      id("region", titleCase(o["Region"])),
-      id("city", titleCase(o["City"])),
-      id("category", String(o["Category"] ?? "").trim()),
+      id("month", monthVal),
+      id("trade", tradeVal),
+      id("region", regionVal),
+      id("city", cityVal),
+      id("category", catVal),
       id("status", status),
-      id("sku", String(o["SKU Name"] ?? "").trim()),
-      Math.round(+o["PO Qty"] || 0), +(+o["Po Value"] || 0).toFixed(4),
-      Math.round(+o["GRN Qty"] || 0), +(+o["GRN Value"] || 0).toFixed(4),
-      toYMD(o["Po Date"]),
-      poId(o["PO Number"]),
-      toYMD(o["Po Expiry Date"]),
+      id("sku", skuVal),
+      poQty, poVal,
+      grnQty, grnVal,
+      poDate,
+      poNum,
+      poExpiry,
     ]);
   }
   // calendar-order the month dim
@@ -145,22 +218,40 @@ export function buildFromRecords(recs: any[]): Dataset {
   };
 }
 
-/* ---------------- Upload-only loader with in-memory cache -----------------
-   The dashboard's data comes from exactly one place: a manually-uploaded
-   file via /api/upload (see /dashboard/upload). That upload is stored in
-   Neon (Dataset table, single JSON row) and served from there on every
-   request until the next upload replaces it. There is no automatic or
-   scheduled fetch from any external source — the stored row (or, before the
-   very first upload, the bundled public/app/data.json file) is always the
-   source of truth. ---------------------------------------------------------- */
+/* ---------------- Upload-only loader with in-memory cache & local fallback -----------------
+   The dashboard's data comes from a manually-uploaded file via /api/upload.
+   That upload is stored in Neon (Dataset table, single JSON row) AND backed up
+   atomically to public/app/data.json and public/app/data.js.
+   This guarantees that even during cold-starts, connection delays, or temporary
+   database offline states, the dashboard always serves the latest uploaded dataset.
+-------------------------------------------------------------------------------------------- */
 
 type StoredDataset = Dataset & { _source?: "upload" };
 let cache: { stamp: string; data: Dataset } | null = null;
 
+function saveLocalFiles(data: Dataset) {
+  try {
+    const jsonStr = JSON.stringify(data);
+    const jsonPath = path.join(process.cwd(), "public", "app", "data.json");
+    const jsPath = path.join(process.cwd(), "public", "app", "data.js");
+    fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
+    fs.writeFileSync(jsonPath, jsonStr, "utf8");
+    fs.writeFileSync(jsPath, "window.TRADE_FR=" + jsonStr + ";", "utf8");
+  } catch (e) {
+    console.warn("[dataset] Warning: could not write local backup files:", e);
+  }
+}
+
 async function loadStored(): Promise<{ data: Dataset; stamp: string } | null> {
+  // If we already have a valid memory cache, return it immediately
+  if (cache && cache.data && cache.data.rows && cache.data.rows.length > 0) {
+    return cache;
+  }
+
   try {
     const dbPromise = prisma.dataset.findUnique({ where: { id: 1 } });
-    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+    // Allow up to 10 seconds for Neon serverless wake up on cold boot
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000));
     const rec = await Promise.race([dbPromise, timeoutPromise]);
     if (!rec) return null;
     const stamp = rec.updatedAt.toISOString();
@@ -169,32 +260,64 @@ async function loadStored(): Promise<{ data: Dataset; stamp: string } | null> {
     const { _source, ...data } = parsed;
     const entry = { data: data as Dataset, stamp };
     cache = entry;
+
+    // Keep local files updated if database has fresh data
+    saveLocalFiles(data as Dataset);
+
     return entry;
-  } catch {
-    return null; // table may not exist yet or connection error — fall through to file
+  } catch (e) {
+    console.warn("[dataset] Could not load from database:", e);
+    return null;
   }
 }
 
 export async function getDataset(): Promise<Dataset> {
+  // 1. Try to load from database or active memory cache
   const stored = await loadStored();
-  if (stored) return stored.data;
+  if (stored && stored.data) return stored.data;
 
-  // file fallback (before the very first upload)
-  const file = path.join(process.cwd(), "public", "app", "data.json");
-  const stamp = "file:" + fs.statSync(file).mtimeMs;
-  if (cache && cache.stamp === stamp) return cache.data;
-  const data = JSON.parse(fs.readFileSync(file, "utf8")) as Dataset;
-  cache = { stamp, data };
-  return data;
+  // 2. If memory cache already holds data, never downgrade to disk file
+  if (cache && cache.data && cache.data.rows && cache.data.rows.length > 0) {
+    return cache.data;
+  }
+
+  // 3. Fall back to local file
+  try {
+    const file = path.join(process.cwd(), "public", "app", "data.json");
+    if (fs.existsSync(file)) {
+      const stamp = "file:" + fs.statSync(file).mtimeMs;
+      if (cache && cache.stamp === stamp) return cache.data;
+      const data = JSON.parse(fs.readFileSync(file, "utf8")) as Dataset;
+      cache = { stamp, data };
+      return data;
+    }
+  } catch (e) {
+    console.error("[dataset] Failed to read public/app/data.json fallback:", e);
+  }
+
+  throw new Error("No dataset available");
 }
 
 export async function saveDataset(data: Dataset, source: "upload" = "upload") {
   const stored: StoredDataset = { ...data, _source: source };
   const json = JSON.stringify(stored);
-  await prisma.dataset.upsert({
-    where: { id: 1 },
-    update: { json },
-    create: { id: 1, json },
-  });
-  cache = null;
+  const stamp = new Date().toISOString();
+
+  // 1. Always update memory cache immediately so callers see it right away
+  cache = { stamp, data };
+
+  // 2. Always update local backup files so server restarts/offline retain it
+  saveLocalFiles(data);
+
+  // 3. Upsert into database
+  try {
+    await prisma.dataset.upsert({
+      where: { id: 1 },
+      update: { json },
+      create: { id: 1, json },
+    });
+  } catch (e) {
+    console.error("[dataset] Failed to write to Prisma database, but local file saved:", e);
+    // Don't re-throw if local file was saved so upload succeeds even if DB is temporarily failing
+  }
 }

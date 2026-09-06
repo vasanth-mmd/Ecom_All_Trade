@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { uploadDataFile } from "@/lib/client-upload";
 
 type Msg = { ok: boolean; text: string } | null;
@@ -32,6 +33,7 @@ export default function UploadPage() {
 }
 
 function FileUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,6 +57,7 @@ function FileUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
       setFile(null);
       if (fileRef.current) fileRef.current.value = "";
       onUploadSuccess();
+      router.refresh();
     } catch (e: any) {
       setMsg({ ok: false, text: e.message });
     } finally {

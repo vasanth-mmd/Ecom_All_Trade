@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { buildFromRecords, saveDataset } from "@/lib/dataset";
+import { buildFromRecords, findRawDataSheet, saveDataset } from "@/lib/dataset";
 import zlib from "zlib";
 import fs from "fs";
 import path from "path";
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
         recs = JSON.parse(recordsJson);
       } else if (fileBuffer) {
         const wb = XLSX.read(fileBuffer, { type: "buffer", cellDates: false });
-        const sheet = wb.Sheets["Raw Data"] || wb.Sheets[wb.SheetNames[0]];
+        const sheet = findRawDataSheet(wb) || wb.Sheets[wb.SheetNames[0]];
         recs = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: true }) as any[];
       }
     } else {
@@ -97,7 +97,11 @@ export async function POST(req: Request) {
 
     if (!Array.isArray(recs) || !recs.length)
       return NextResponse.json({ error: "The Raw Data sheet is empty" }, { status: 400 });
-    if (!("PO Number" in recs[0]) || !("Trade" in recs[0]))
+
+    const keys0 = Object.keys(recs[0] || {}).map((k) => k.trim().toLowerCase());
+    const hasPo = keys0.some((k) => k.includes("po number") || k === "po");
+    const hasTrade = keys0.some((k) => k.includes("trade"));
+    if (!hasPo || !hasTrade)
       return NextResponse.json(
         { error: "Columns not recognised — expected the Trade FR Raw Data format (PO Number, Trade, City, PO Qty, Po Value, GRN Qty, GRN Value, ...)" },
         { status: 400 }
