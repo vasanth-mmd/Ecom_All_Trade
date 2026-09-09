@@ -564,8 +564,15 @@ export default function ReportsPage() {
 
   const cityPo = useMemo(() => {
     if (!d) return null;
-    const sIdx: Record<string, number> = {};
-    d.dims.status.forEach((s, i) => (sIdx[s] = i));
+    const fullIdxs = new Set<number>();
+    const partIdxs = new Set<number>();
+    const zeroIdxs = new Set<number>();
+    d.dims.status.forEach((s, i) => {
+      const lower = s.toLowerCase();
+      if (lower.includes("full") || lower.includes("completed") || lower.includes("grn_done")) fullIdxs.add(i);
+      else if (lower.includes("part")) partIdxs.add(i);
+      else if (lower.includes("zero")) zeroIdxs.add(i);
+    });
     const per = d.dims.city.map((c) => ({
       city: c,
       full: new Set<number>(),
@@ -576,9 +583,9 @@ export default function ReportsPage() {
     for (const r of rows) {
       const p = per[r[3]];
       p.all.add(r[12]);
-      if (r[5] === sIdx["Fully Supplied"]) p.full.add(r[12]);
-      else if (r[5] === sIdx["Partially Supplied"]) p.part.add(r[12]);
-      else if (r[5] === sIdx["Zero Supply"]) p.zero.add(r[12]);
+      if (fullIdxs.has(r[5])) p.full.add(r[12]);
+      else if (partIdxs.has(r[5])) p.part.add(r[12]);
+      else if (zeroIdxs.has(r[5])) p.zero.add(r[12]);
     }
     return per
       .filter((p) => p.all.size > 0)

@@ -353,6 +353,7 @@ export default function OverviewPage() {
               ⭳ Download raw data
             </a>
             <UploadButton variant="light" />
+            <Link href="/dashboard/month-compare" className="text-xs text-indigo-600 font-semibold hover:underline whitespace-nowrap">Month comparison →</Link>
             <Link href="/dashboard/full" className="text-xs text-sky-600 hover:underline whitespace-nowrap">Full dashboard →</Link>
           </div>
         </div>

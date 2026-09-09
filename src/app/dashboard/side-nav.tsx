@@ -10,6 +10,7 @@ const items = [
   { href: "/dashboard", label: "Overview", icon: "▦" },
   { href: "/dashboard/priority-po", label: "Priority PO Dispatch", icon: "🚨" },
   { href: "/dashboard/full", label: "Full Dashboard", icon: "📊" },
+  { href: "/dashboard/month-compare", label: "Month Comparison", icon: "🗓️" },
   { href: "/dashboard/reports", label: "Reports", icon: "📋" },
   { href: "/dashboard/daily-po", label: "Daily PO & Gap Tracker", icon: "📅" },
   { href: "/dashboard/city-sku", label: "City SKU Performance", icon: "🏙️" },

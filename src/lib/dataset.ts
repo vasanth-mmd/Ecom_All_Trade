@@ -26,12 +26,35 @@ export type Dataset = {
 
 const MONTH_ORDER = ["January","February","March","April","May","June","July",
   "August","September","October","November","December"];
-const STATUS_MAP: Record<string, string> = {
-  "Fully Supplied": "Fully Supplied", "Fully Supplied Po": "Fully Supplied",
-  "Po Fully Supplied": "Fully Supplied", "COMPLETED": "Fully Supplied",
-  "GRN_DONE": "Fully Supplied", "Po Partially Supplied": "Partially Supplied",
-  "Zero Supply": "Zero Supply", "EXPIRED": "Expired",
-};
+
+export function normalizeStatus(raw: any): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "(Blanks)";
+  const lower = s.toLowerCase().replace(/\s+/g, " ");
+  if (
+    lower === "fully supplied po" ||
+    lower === "fully supplied" ||
+    lower === "po fully supplied" ||
+    lower === "completed" ||
+    lower === "grn_done"
+  ) {
+    return "Fully Supplied Po";
+  }
+  if (
+    lower === "partially supplied po" ||
+    lower === "partially supplied" ||
+    lower === "po partially supplied"
+  ) {
+    return "Partially Supplied Po";
+  }
+  if (lower === "zero supply po" || lower === "zero supply") {
+    return "Zero Supply Po";
+  }
+  if (lower === "expired") {
+    return "Expired";
+  }
+  return titleCase(s);
+}
 const titleCase = (s: any) =>
   String(s ?? "").trim().toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
 const MONTH_ABBR: Record<string, number> = {
@@ -158,10 +181,8 @@ export function buildFromRecords(recs: any[]): Dataset {
       o[k.trim()] = rawO[k];
     }
 
-    const rawStatus = String(
-      o["PO Status"] ?? o["Po Status"] ?? o["Status"] ?? o["status"] ?? ""
-    ).trim();
-    const status = rawStatus || "(Blanks)";
+    const rawStatus = o["PO Status"] ?? o["Po Status"] ?? o["Status"] ?? o["status"] ?? "";
+    const status = normalizeStatus(rawStatus);
 
     const monthVal = String(o["Month"] ?? o["month"] ?? "").trim();
     const tradeVal = String(o["Trade"] ?? o["trade"] ?? "").trim();
