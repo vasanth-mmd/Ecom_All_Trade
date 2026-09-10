@@ -75,6 +75,12 @@ const TABLES = [
     nameCol: "Region",
   },
   {
+    key: "category",
+    rowIdx: 4,
+    title: "Category-wise Fill Rate",
+    nameCol: "Category",
+  },
+  {
     key: "depo",
     rowIdx: 3,
     title: "Depo-wise Fill Rate",
@@ -89,6 +95,7 @@ type ClickSel = {
   region: number | null;
   trade: number | null;
   sku: string | null;
+  category: number | null;
   depo: number | null;
 };
 
@@ -115,6 +122,7 @@ const DEFAULT_SORT: Record<TableKey, SortState> = {
   sku: { col: "poVal", dir: -1 },
   trade: { col: "poVal", dir: -1 },
   region: { col: "poVal", dir: -1 },
+  category: { col: "poVal", dir: -1 },
   depo: { col: "poVal", dir: -1 },
 };
 
@@ -183,6 +191,7 @@ export default function FrySummaryPage() {
     region: null,
     sku: null,
     trade: null,
+    category: null,
     depo: null,
   });
 
@@ -201,6 +210,7 @@ export default function FrySummaryPage() {
     sku: false,
     trade: false,
     region: false,
+    category: false,
     depo: false,
   });
 
@@ -216,6 +226,7 @@ export default function FrySummaryPage() {
     sku: 620,
     trade: 620,
     region: 620,
+    category: 620,
     depo: 620,
   });
 
@@ -413,6 +424,9 @@ export default function FrySummaryPage() {
         (exceptKey === "trade" ||
           click.trade === null ||
           r[1] === click.trade) &&
+        (exceptKey === "category" ||
+          click.category === null ||
+          r[4] === click.category) &&
         (exceptKey === "depo" ||
           click.depo === null ||
           r[3] === click.depo)
@@ -431,6 +445,8 @@ export default function FrySummaryPage() {
             skuGroupKey[r[6]] === click.sku) &&
           (click.trade === null ||
             r[1] === click.trade) &&
+          (click.category === null ||
+            r[4] === click.category) &&
           (click.depo === null ||
             r[3] === click.depo)
       ),
@@ -1001,6 +1017,7 @@ export default function FrySummaryPage() {
                 region: null,
                 sku: null,
                 trade: null,
+                category: null,
                 depo: null,
               })
             }
