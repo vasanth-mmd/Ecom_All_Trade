@@ -87,7 +87,10 @@ export async function POST(req: Request) {
       recs = JSON.parse(jsonBuf.toString("utf8"));
 
       // Also generate and store an .xlsx in the download folder
-      savedFileName = "trade_fr_raw_data.xlsx";
+      // Use the original filename if provided by the client
+      const rawName = req.headers.get("x-original-filename");
+      const originalName = rawName ? decodeURIComponent(rawName) : "";
+      savedFileName = originalName || "trade_fr_raw_data.xlsx";
       const ws = XLSX.utils.json_to_sheet(recs);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Raw Data");
