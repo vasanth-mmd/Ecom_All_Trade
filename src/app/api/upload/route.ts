@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { buildFromRecords, findRawDataSheet, saveDataset, applyCacheOnly } from "@/lib/dataset";
+import { buildFromRecords, findRawDataSheet, saveDataset } from "@/lib/dataset";
 import zlib from "zlib";
 import fs from "fs";
 import path from "path";
@@ -80,16 +80,19 @@ export async function POST(req: Request) {
         recs = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: true }) as any[];
       }
     } else {
-      // Client-side-parsed JSON path (gzip or plain)
-      // This is the fast path: the browser already parsed the XLSX and sent JSON rows.
+      // Fallback for raw compressed/uncompressed JSON
       const raw = Buffer.from(await req.arrayBuffer());
       if (!raw.length) return NextResponse.json({ error: "No data received" }, { status: 400 });
       const jsonBuf = req.headers.get("content-encoding") === "gzip" ? zlib.gunzipSync(raw) : raw;
       recs = JSON.parse(jsonBuf.toString("utf8"));
 
-      // Record the original filename (for the response message only — no FS write on Vercel)
-      const rawName = req.headers.get("x-original-filename");
-      savedFileName = rawName ? decodeURIComponent(rawName) : "trade_fr_raw_data.xlsx";
+      // Also generate and store an .xlsx in the download folder
+      savedFileName = "trade_fr_raw_data.xlsx";
+      const ws = XLSX.utils.json_to_sheet(recs);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Raw Data");
+      const excelBuf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+      saveToDownloadFolders(savedFileName, excelBuf);
     }
 
     if (!Array.isArray(recs) || !recs.length)
@@ -105,14 +108,7 @@ export async function POST(req: Request) {
       );
 
     const data = buildFromRecords(recs);
-
-    // ── Fast path: update in-memory cache NOW so dashboard reads work immediately ──
-    applyCacheOnly(data);
-
-    // ── Fire DB write in background — don't make the user wait for Neon ──
-    saveDataset(data, "upload").catch((e) =>
-      console.error("[upload] Background DB write failed:", e)
-    );
+    await saveDataset(data, "upload");
 
     return NextResponse.json({
       ok: true,

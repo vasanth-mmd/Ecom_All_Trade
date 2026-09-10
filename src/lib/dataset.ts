@@ -223,14 +223,9 @@ export function buildFromRecords(recs: any[]): Dataset {
   dims.month = perm.map((oldI) => dims.month[oldI]);
   rows.forEach((r) => { r[0] = remap[r[0]]; });
 
-  let dmin = 0, dmax = 0;
-  for (const r of rows) {
-    const y = r[11];
-    if (y > 0) {
-      if (dmin === 0 || y < dmin) dmin = y;
-      if (y > dmax) dmax = y;
-    }
-  }
+  const ymds = rows.map((r) => r[11]).filter((y) => y > 0);
+  const dmin = ymds.length ? Math.min(...ymds) : 0;
+  const dmax = ymds.length ? Math.max(...ymds) : 0;
   return {
     meta: {
       rows: rows.length,
@@ -324,13 +319,6 @@ export async function getDataset(): Promise<Dataset> {
   throw new Error("No dataset available");
 }
 
-/** Instantly applies the dataset to the in-memory cache only.
- *  Call this before returning the HTTP response so the dashboard
- *  reflects the new data immediately without waiting for the DB write. */
-export function applyCacheOnly(data: Dataset) {
-  cache = { stamp: new Date().toISOString(), data };
-}
-
 export async function saveDataset(data: Dataset, source: "upload" = "upload") {
   const stored: StoredDataset = { ...data, _source: source };
   const json = JSON.stringify(stored);
@@ -339,9 +327,8 @@ export async function saveDataset(data: Dataset, source: "upload" = "upload") {
   // 1. Always update memory cache immediately so callers see it right away
   cache = { stamp, data };
 
-  // 2. Update local backup files in the background (non-blocking)
-  //    On Vercel the FS is ephemeral so this is best-effort only.
-  setImmediate(() => saveLocalFiles(data));
+  // 2. Always update local backup files so server restarts/offline retain it
+  saveLocalFiles(data);
 
   // 3. Upsert into database
   try {
