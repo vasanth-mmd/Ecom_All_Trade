@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { buildFromRecords, findRawDataSheet, saveDataset } from "@/lib/dataset";
+import { buildFromRecords, findRawDataSheet, saveDataset, applyCacheOnly } from "@/lib/dataset";
 import zlib from "zlib";
 import fs from "fs";
 import path from "path";
@@ -105,7 +105,14 @@ export async function POST(req: Request) {
       );
 
     const data = buildFromRecords(recs);
-    await saveDataset(data, "upload");
+
+    // ── Fast path: update in-memory cache NOW so dashboard reads work immediately ──
+    applyCacheOnly(data);
+
+    // ── Fire DB write in background — don't make the user wait for Neon ──
+    saveDataset(data, "upload").catch((e) =>
+      console.error("[upload] Background DB write failed:", e)
+    );
 
     return NextResponse.json({
       ok: true,

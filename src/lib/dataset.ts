@@ -324,6 +324,13 @@ export async function getDataset(): Promise<Dataset> {
   throw new Error("No dataset available");
 }
 
+/** Instantly applies the dataset to the in-memory cache only.
+ *  Call this before returning the HTTP response so the dashboard
+ *  reflects the new data immediately without waiting for the DB write. */
+export function applyCacheOnly(data: Dataset) {
+  cache = { stamp: new Date().toISOString(), data };
+}
+
 export async function saveDataset(data: Dataset, source: "upload" = "upload") {
   const stored: StoredDataset = { ...data, _source: source };
   const json = JSON.stringify(stored);
