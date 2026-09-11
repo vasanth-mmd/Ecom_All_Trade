@@ -122,12 +122,20 @@ export async function POST(req: Request) {
     const data = buildFromRecords(recs);
     await saveDataset(data, "upload");
 
+    // Sync raw 17-column order rows to Supabase trade_orders table
+    try {
+      const { syncRecordsToSupabase } = await import("@/lib/supabase-sync");
+      await syncRecordsToSupabase(recs);
+    } catch (dbErr) {
+      console.warn("[upload] Supabase sync notice:", dbErr);
+    }
+
     return NextResponse.json({
       ok: true,
       meta: data.meta,
       storedFile: savedFileName,
       message:
-        `Stored in database & download folder (${savedFileName}): ${data.meta.rows.toLocaleString("en-IN")} PO lines, ` +
+        `Stored in Supabase, database & download folder (${savedFileName}): ${data.meta.rows.toLocaleString("en-IN")} PO lines, ` +
         `${data.meta.po_count.toLocaleString("en-IN")} POs, ${data.meta.date_min} → ${data.meta.date_max}`,
     });
   } catch (e: any) {
