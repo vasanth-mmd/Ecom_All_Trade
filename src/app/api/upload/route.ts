@@ -116,7 +116,9 @@ export async function POST(req: Request) {
 
         const sess = chunkSessions.get(sessionId)!;
         if (Array.isArray(records) && records.length) {
-          sess.records.push(...records);
+          for (let i = 0; i < records.length; i++) {
+            sess.records.push(records[i]);
+          }
           // Sync this batch into Supabase trade_orders
           try {
             await syncRecordsToSupabase(records);

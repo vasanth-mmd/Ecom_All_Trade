@@ -223,9 +223,17 @@ export function buildFromRecords(recs: any[]): Dataset {
   dims.month = perm.map((oldI) => dims.month[oldI]);
   rows.forEach((r) => { r[0] = remap[r[0]]; });
 
-  const ymds = rows.map((r) => r[11]).filter((y) => y > 0);
-  const dmin = ymds.length ? Math.min(...ymds) : 0;
-  const dmax = ymds.length ? Math.max(...ymds) : 0;
+  let dmin = 99999999;
+  let dmax = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const y = rows[i][11];
+    if (y > 0) {
+      if (y < dmin) dmin = y;
+      if (y > dmax) dmax = y;
+    }
+  }
+  if (dmin === 99999999) dmin = 0;
+
   return {
     meta: {
       rows: rows.length,
