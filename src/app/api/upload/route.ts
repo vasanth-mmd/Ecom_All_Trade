@@ -13,15 +13,6 @@ export const dynamic = "force-dynamic";
 // Raise the body-size limit so large Excel uploads don't get rejected with HTTP 413
 export const fetchCache = "force-no-store";
 
-// Next.js route segment config – allow up to 50 MB request bodies
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "50mb",
-    },
-  },
-};
-
 function saveToDownloadFolders(fileName: string, buffer: Buffer) {
   const targetDirs = [
     path.join(process.cwd(), "download"),
