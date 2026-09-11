@@ -36,6 +36,52 @@ const frPill = (fr: number) =>
 const frColor = (fr: number) =>
   fr >= 90 ? "text-emerald-500" : fr >= 75 ? "text-amber-500" : "text-rose-500";
 
+// Helper to convert YYYYMMDD number to "YYYY-MM-DD" string
+const ymdToDateStr = (ymd: number): string => {
+  if (!ymd || ymd < 10000000) return "";
+  const y = Math.floor(ymd / 10000);
+  const m = Math.floor((ymd % 10000) / 100);
+  const d = ymd % 100;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+};
+
+// Helper to convert "YYYY-MM-DD" to YYYYMMDD number
+const dateStrToYmd = (s: string): number => {
+  if (!s) return 0;
+  return +s.replaceAll("-", "") || 0;
+};
+
+// Format YYYY-MM-DD into "DD MMM YYYY"
+const formatDateDisplay = (dateStr: string): string => {
+  if (!dateStr) return "";
+  try {
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      const year = parts[0];
+      const monthIdx = parseInt(parts[1], 10) - 1;
+      const day = parts[2];
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${day} ${monthNames[monthIdx] || parts[1]} ${year}`;
+    }
+  } catch {}
+  return dateStr;
+};
+
+// Format YYYY-MM-DD into "DD MMM"
+const formatDateShort = (dateStr: string): string => {
+  if (!dateStr) return "";
+  try {
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      const monthIdx = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${day} ${monthNames[monthIdx] || parts[1]}`;
+    }
+  } catch {}
+  return dateStr;
+};
+
 /* ── Multi-Select Checkbox Dropdown ── */
 interface MultiSelectProps {
   label: string;
@@ -203,9 +249,13 @@ export default function MonthComparePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("deep-dive");
   const [selectedDim, setSelectedDim] = useState<DimensionKey>("trade");
 
-  // Selected Months for Comparison
+  // Selected Months & Date Ranges for Comparison
   const [monthA, setMonthA] = useState<string>("");
   const [monthB, setMonthB] = useState<string>("");
+  const [dateFromA, setDateFromA] = useState<string>("");
+  const [dateToA, setDateToA] = useState<string>("");
+  const [dateFromB, setDateFromB] = useState<string>("");
+  const [dateToB, setDateToB] = useState<string>("");
 
   // Dimension Filters
   const [selTrades, setSelTrades] = useState<string[]>([]);
@@ -229,6 +279,32 @@ export default function MonthComparePage() {
   // Matrix entity selector
   const [matrixDim, setMatrixDim] = useState<DimensionKey>("trade");
 
+  // Precompute each month's date bounds from data
+  const monthDateBounds = useMemo(() => {
+    if (!d) return new Map<string, { min: string; max: string }>();
+    const map = new Map<string, { minNum: number; maxNum: number }>();
+    for (const r of d.rows) {
+      const m = d.dims.month[r[0]];
+      const ymd = r[11];
+      if (!ymd || ymd < 10000000) continue;
+      if (!map.has(m)) {
+        map.set(m, { minNum: ymd, maxNum: ymd });
+      } else {
+        const cur = map.get(m)!;
+        if (ymd < cur.minNum) cur.minNum = ymd;
+        if (ymd > cur.maxNum) cur.maxNum = ymd;
+      }
+    }
+    const res = new Map<string, { min: string; max: string }>();
+    map.forEach((val, m) => {
+      res.set(m, {
+        min: ymdToDateStr(val.minNum),
+        max: ymdToDateStr(val.maxNum),
+      });
+    });
+    return res;
+  }, [d]);
+
   useEffect(() => {
     fetch("/api/data")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status))))
@@ -236,12 +312,38 @@ export default function MonthComparePage() {
         setD(data);
         if (data?.dims?.month && data.dims.month.length > 0) {
           const mList = data.dims.month;
+          let mA = mList[0];
+          let mB = mList[0];
           if (mList.length >= 2) {
-            setMonthA(mList[mList.length - 2]); // Previous month
-            setMonthB(mList[mList.length - 1]); // Latest month
-          } else {
-            setMonthA(mList[0]);
-            setMonthB(mList[0]);
+            mA = mList[mList.length - 2]; // Previous month
+            mB = mList[mList.length - 1]; // Latest month
+          }
+          setMonthA(mA);
+          setMonthB(mB);
+
+          // Compute initial date bounds for month A and B
+          const map = new Map<string, { minNum: number; maxNum: number }>();
+          for (const r of data.rows) {
+            const m = data.dims.month[r[0]];
+            const ymd = r[11];
+            if (!ymd || ymd < 10000000) continue;
+            if (!map.has(m)) {
+              map.set(m, { minNum: ymd, maxNum: ymd });
+            } else {
+              const cur = map.get(m)!;
+              if (ymd < cur.minNum) cur.minNum = ymd;
+              if (ymd > cur.maxNum) cur.maxNum = ymd;
+            }
+          }
+          const bA = map.get(mA);
+          if (bA) {
+            setDateFromA(ymdToDateStr(bA.minNum));
+            setDateToA(ymdToDateStr(bA.maxNum));
+          }
+          const bB = map.get(mB);
+          if (bB) {
+            setDateFromB(ymdToDateStr(bB.minNum));
+            setDateToB(ymdToDateStr(bB.maxNum));
           }
         }
       })
@@ -275,7 +377,46 @@ export default function MonthComparePage() {
   const catSet = useMemo(() => (selCategories.length ? new Set(selCategories) : null), [selCategories]);
   const statusSet = useMemo(() => (selStatuses.length ? new Set(selStatuses) : null), [selStatuses]);
 
-  // Filtered rows
+  // Date range conversions to YYYYMMDD
+  const ymdFromA = useMemo(() => dateStrToYmd(dateFromA), [dateFromA]);
+  const ymdToA = useMemo(() => dateStrToYmd(dateToA), [dateToA]);
+  const ymdFromB = useMemo(() => dateStrToYmd(dateFromB), [dateFromB]);
+  const ymdToB = useMemo(() => dateStrToYmd(dateToB), [dateToB]);
+
+  // Row matching predicates for Period A and Period B
+  const isRowInA = useMemo(() => {
+    return (r: number[]) => {
+      if (!d) return false;
+      const rYmd = r[11];
+      if (ymdFromA || ymdToA) {
+        if (rYmd && rYmd >= 10000000) {
+          if (ymdFromA && rYmd < ymdFromA) return false;
+          if (ymdToA && rYmd > ymdToA) return false;
+          return true;
+        }
+      }
+      const m = d.dims.month[r[0]];
+      return m === monthA;
+    };
+  }, [d, ymdFromA, ymdToA, monthA]);
+
+  const isRowInB = useMemo(() => {
+    return (r: number[]) => {
+      if (!d) return false;
+      const rYmd = r[11];
+      if (ymdFromB || ymdToB) {
+        if (rYmd && rYmd >= 10000000) {
+          if (ymdFromB && rYmd < ymdFromB) return false;
+          if (ymdToB && rYmd > ymdToB) return false;
+          return true;
+        }
+      }
+      const m = d.dims.month[r[0]];
+      return m === monthB;
+    };
+  }, [d, ymdFromB, ymdToB, monthB]);
+
+  // Filtered rows by dimension filters
   const filteredRows = useMemo(() => {
     if (!d) return [];
     return d.rows.filter((r) => {
@@ -299,42 +440,48 @@ export default function MonthComparePage() {
     });
   }, [d, tradeSet, regionSet, citySet, catSet, statusSet, skuSearch]);
 
-  // Aggregate stats by month
-  const statsByMonth = useMemo(() => {
-    if (!d) return new Map<string, { po: number; grn: number; gap: number; fr: number; poCount: Set<number>; skus: Set<number>; cities: Set<number> }>();
-    const map = new Map<string, { po: number; grn: number; gap: number; fr: number; poCount: Set<number>; skus: Set<number>; cities: Set<number> }>();
+  // Aggregate stats directly for Period A and Period B
+  const { statsA, statsB, countA, countB } = useMemo(() => {
+    const stA = { po: 0, grn: 0, gap: 0, fr: 0, poCount: new Set<number>(), skus: new Set<number>(), cities: new Set<number>() };
+    const stB = { po: 0, grn: 0, gap: 0, fr: 0, poCount: new Set<number>(), skus: new Set<number>(), cities: new Set<number>() };
+    let cntA = 0;
+    let cntB = 0;
 
-    for (const m of d.dims.month) {
-      map.set(m, { po: 0, grn: 0, gap: 0, fr: 0, poCount: new Set(), skus: new Set(), cities: new Set() });
-    }
+    if (!d) return { statsA: stA, statsB: stB, countA: 0, countB: 0 };
 
     for (const r of filteredRows) {
-      const m = d.dims.month[r[0]];
-      if (!map.has(m)) {
-        map.set(m, { po: 0, grn: 0, gap: 0, fr: 0, poCount: new Set(), skus: new Set(), cities: new Set() });
-      }
-      const st = map.get(m)!;
+      const inA = isRowInA(r);
+      const inB = isRowInB(r);
       const poVal = r[PO_IDX];
       const grnVal = r[GRN_IDX];
-      st.po += poVal;
-      st.grn += grnVal;
-      st.poCount.add(r[12]);
-      st.skus.add(r[6]);
-      st.cities.add(r[3]);
+
+      if (inA) {
+        cntA++;
+        stA.po += poVal;
+        stA.grn += grnVal;
+        stA.poCount.add(r[12]);
+        stA.skus.add(r[6]);
+        stA.cities.add(r[3]);
+      }
+      if (inB) {
+        cntB++;
+        stB.po += poVal;
+        stB.grn += grnVal;
+        stB.poCount.add(r[12]);
+        stB.skus.add(r[6]);
+        stB.cities.add(r[3]);
+      }
     }
 
-    map.forEach((st) => {
-      st.gap = Math.max(0, st.po - st.grn);
-      st.fr = st.po > 0 ? (st.grn / st.po) * 100 : 0;
-    });
+    stA.gap = Math.max(0, stA.po - stA.grn);
+    stA.fr = stA.po > 0 ? (stA.grn / stA.po) * 100 : 0;
+    stB.gap = Math.max(0, stB.po - stB.grn);
+    stB.fr = stB.po > 0 ? (stB.grn / stB.po) * 100 : 0;
 
-    return map;
-  }, [d, filteredRows, PO_IDX, GRN_IDX]);
+    return { statsA: stA, statsB: stB, countA: cntA, countB: cntB };
+  }, [d, filteredRows, PO_IDX, GRN_IDX, isRowInA, isRowInB]);
 
-  const statsA = statsByMonth.get(monthA) || { po: 0, grn: 0, gap: 0, fr: 0, poCount: new Set(), skus: new Set(), cities: new Set() };
-  const statsB = statsByMonth.get(monthB) || { po: 0, grn: 0, gap: 0, fr: 0, poCount: new Set(), skus: new Set(), cities: new Set() };
-
-  // Differences between Month A and Month B
+  // Differences between Period A and Period B
   const diffPo = statsB.po - statsA.po;
   const diffPoPct = statsA.po > 0 ? (diffPo / statsA.po) * 100 : 0;
   const diffGrn = statsB.grn - statsA.grn;
@@ -396,8 +543,9 @@ export default function MonthComparePage() {
     };
 
     for (const r of filteredRows) {
-      const m = d.dims.month[r[0]];
-      if (m !== monthA && m !== monthB) continue;
+      const inA = isRowInA(r);
+      const inB = isRowInB(r);
+      if (!inA && !inB) continue;
 
       const { key, name, subName } = getDimKey(r);
       if (!map.has(key)) {
@@ -425,11 +573,11 @@ export default function MonthComparePage() {
       const poVal = r[PO_IDX];
       const grnVal = r[GRN_IDX];
 
-      if (m === monthA) {
+      if (inA) {
         item.aPo += poVal;
         item.aGrn += grnVal;
       }
-      if (m === monthB) {
+      if (inB) {
         item.bPo += poVal;
         item.bGrn += grnVal;
       }
@@ -479,7 +627,7 @@ export default function MonthComparePage() {
 
       return sortDir === 1 ? vA - vB : vB - vA;
     });
-  }, [d, filteredRows, selectedDim, monthA, monthB, PO_IDX, GRN_IDX, sortCol, sortDir]);
+  }, [d, filteredRows, selectedDim, isRowInA, isRowInB, PO_IDX, GRN_IDX, sortCol, sortDir]);
 
   // SKU Comparison List
   const skuComparisonData = useMemo(() => {
@@ -510,8 +658,9 @@ export default function MonthComparePage() {
     const map = new Map<number, SkuAgg>();
 
     for (const r of filteredRows) {
-      const m = d.dims.month[r[0]];
-      if (m !== monthA && m !== monthB) continue;
+      const inA = isRowInA(r);
+      const inB = isRowInB(r);
+      if (!inA && !inB) continue;
 
       const skuId = r[6];
       if (!map.has(skuId)) {
@@ -547,11 +696,11 @@ export default function MonthComparePage() {
       const poVal = r[PO_IDX];
       const grnVal = r[GRN_IDX];
 
-      if (m === monthA) {
+      if (inA) {
         item.aPo += poVal;
         item.aGrn += grnVal;
       }
-      if (m === monthB) {
+      if (inB) {
         item.bPo += poVal;
         item.bGrn += grnVal;
       }
@@ -599,7 +748,7 @@ export default function MonthComparePage() {
       if (skuFilterType === "growth") return b.diffPo - a.diffPo;
       return b.bPo - a.bPo;
     });
-  }, [d, filteredRows, monthA, monthB, PO_IDX, GRN_IDX, skuFilterType]);
+  }, [d, filteredRows, isRowInA, isRowInB, PO_IDX, GRN_IDX, skuFilterType]);
 
   // Master Pivot Matrix Data (All Months Side-by-Side)
   const matrixData = useMemo(() => {
@@ -695,7 +844,7 @@ export default function MonthComparePage() {
     const poGrowers = [...dimensionData].sort((a, b) => b.diffPo - a.diffPo);
     const topDemand = poGrowers[0];
 
-    // Biggest Gap contributor in Month B
+    // Biggest Gap contributor in Period B
     const gapLeaders = [...dimensionData].sort((a, b) => b.bGap - a.bGap);
     const topGap = gapLeaders[0];
 
@@ -707,11 +856,111 @@ export default function MonthComparePage() {
     };
   }, [dimensionData]);
 
+  // Handle Month A change
+  const handleMonthAChange = (newMonth: string) => {
+    setMonthA(newMonth);
+    const b = monthDateBounds.get(newMonth);
+    if (b) {
+      setDateFromA(b.min);
+      setDateToA(b.max);
+    }
+  };
+
+  // Handle Month B change
+  const handleMonthBChange = (newMonth: string) => {
+    setMonthB(newMonth);
+    const b = monthDateBounds.get(newMonth);
+    if (b) {
+      setDateFromB(b.min);
+      setDateToB(b.max);
+    }
+  };
+
+  // Apply Presets for Base Period A
+  const applyPresetA = (preset: "full" | "first-half" | "second-half" | "7d") => {
+    const b = monthDateBounds.get(monthA);
+    if (!b) return;
+    if (preset === "full") {
+      setDateFromA(b.min);
+      setDateToA(b.max);
+    } else if (preset === "first-half") {
+      const ym = b.min.slice(0, 7);
+      setDateFromA(`${ym}-01`);
+      setDateToA(`${ym}-15`);
+    } else if (preset === "second-half") {
+      const ym = b.max.slice(0, 7);
+      setDateFromA(`${ym}-16`);
+      setDateToA(b.max);
+    } else if (preset === "7d") {
+      const dt = new Date(b.max + "T00:00:00Z");
+      dt.setUTCDate(dt.getUTCDate() - 6);
+      setDateFromA(dt.toISOString().slice(0, 10));
+      setDateToA(b.max);
+    }
+  };
+
+  // Apply Presets for Comparison Period B
+  const applyPresetB = (preset: "full" | "first-half" | "second-half" | "match-span" | "7d") => {
+    const b = monthDateBounds.get(monthB);
+    if (!b) return;
+    if (preset === "full") {
+      setDateFromB(b.min);
+      setDateToB(b.max);
+    } else if (preset === "first-half") {
+      const ym = b.min.slice(0, 7);
+      setDateFromB(`${ym}-01`);
+      setDateToB(`${ym}-15`);
+    } else if (preset === "second-half") {
+      const ym = b.max.slice(0, 7);
+      setDateFromB(`${ym}-16`);
+      setDateToB(b.max);
+    } else if (preset === "match-span") {
+      if (dateFromA && dateToA) {
+        const ymB = b.min.slice(0, 7);
+        const dayA1 = dateFromA.slice(8, 10);
+        const dayA2 = dateToA.slice(8, 10);
+        setDateFromB(`${ymB}-${dayA1}`);
+        setDateToB(`${ymB}-${dayA2}`);
+      }
+    } else if (preset === "7d") {
+      const dt = new Date(b.max + "T00:00:00Z");
+      dt.setUTCDate(dt.getUTCDate() - 6);
+      setDateFromB(dt.toISOString().slice(0, 10));
+      setDateToB(b.max);
+    }
+  };
+
+  // Swap Periods A & B
+  const swapMonths = () => {
+    const tempM = monthA;
+    setMonthA(monthB);
+    setMonthB(tempM);
+
+    const tempFrom = dateFromA;
+    const tempTo = dateToA;
+    setDateFromA(dateFromB);
+    setDateToA(dateToB);
+    setDateFromB(tempFrom);
+    setDateToB(tempTo);
+  };
+
   // Quick switch between consecutive months
   const setConsecutivePair = (idx: number) => {
     if (idx >= 0 && idx < months.length - 1) {
-      setMonthA(months[idx]);
-      setMonthB(months[idx + 1]);
+      const mA = months[idx];
+      const mB = months[idx + 1];
+      setMonthA(mA);
+      setMonthB(mB);
+      const bA = monthDateBounds.get(mA);
+      if (bA) {
+        setDateFromA(bA.min);
+        setDateToA(bA.max);
+      }
+      const bB = monthDateBounds.get(mB);
+      if (bB) {
+        setDateFromB(bB.min);
+        setDateToB(bB.max);
+      }
     }
   };
 
@@ -720,11 +969,11 @@ export default function MonthComparePage() {
     if (dimensionData.length === 0) return;
     const header = [
       "Entity",
-      `${monthA} PO (${unitLabel})`,
-      `${monthA} GRN (${unitLabel})`,
+      `${monthA} (${dateFromA} to ${dateToA}) PO (${unitLabel})`,
+      `${monthA} (${dateFromA} to ${dateToA}) GRN (${unitLabel})`,
       `${monthA} FR %`,
-      `${monthB} PO (${unitLabel})`,
-      `${monthB} GRN (${unitLabel})`,
+      `${monthB} (${dateFromB} to ${dateToB}) PO (${unitLabel})`,
+      `${monthB} (${dateFromB} to ${dateToB}) GRN (${unitLabel})`,
       `${monthB} FR %`,
       `Diff PO (${unitLabel})`,
       "Diff PO %",
@@ -750,7 +999,7 @@ export default function MonthComparePage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `MoM_Comparison_${monthA}_vs_${monthB}_${selectedDim}.csv`);
+    link.setAttribute("download", `Comparison_${monthA}_(${dateFromA}_to_${dateToA})_vs_${monthB}_(${dateFromB}_to_${dateToB})_${selectedDim}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -771,9 +1020,9 @@ export default function MonthComparePage() {
       name: sku.skuName,
       stats: [
         { label: "Category", value: sku.category },
-        { label: `${monthA} PO Demand`, value: `${unitSymbol} ${L(sku.aPo)}` },
+        { label: `${monthA} (${formatDateShort(dateFromA)}–${formatDateShort(dateToA)}) PO Demand`, value: `${unitSymbol} ${L(sku.aPo)}` },
         { label: `${monthA} FR %`, value: `${sku.aFr.toFixed(1)}%`, cls: frColor(sku.aFr) },
-        { label: `${monthB} PO Demand`, value: `${unitSymbol} ${L(sku.bPo)}` },
+        { label: `${monthB} (${formatDateShort(dateFromB)}–${formatDateShort(dateToB)}) PO Demand`, value: `${unitSymbol} ${L(sku.bPo)}` },
         { label: `${monthB} FR %`, value: `${sku.bFr.toFixed(1)}%`, cls: frColor(sku.bFr) },
         {
           label: "MoM Fill Rate Δ",
@@ -794,14 +1043,14 @@ export default function MonthComparePage() {
               <div className="flex items-center gap-2">
                 <span className="text-2xl">⚖️</span>
                 <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-sky-300 bg-clip-text text-transparent">
-                  Month-on-Month Comparison Dashboard
+                  Month & Date Range Comparison Dashboard
                 </h1>
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Side-by-Side Analytics
+                  Dual-Period Analytics
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                Analyze growth, supply shifts, demand variations, and fill rate performance across months
+                Compare custom date ranges, monthly periods, growth shifts, demand variations, and fill rate performance
               </p>
             </div>
 
@@ -849,85 +1098,237 @@ export default function MonthComparePage() {
             </div>
           </div>
 
-          {/* ── MONTH SELECTION BAR ── */}
-          <div className="mt-4 pt-3 border-t border-white/10 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Compare Side-by-Side:
-              </span>
-
-              {/* Month A Selector */}
-              <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-sky-500/30 shadow-sm">
-                <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" />
-                <span className="text-xs text-slate-400 font-medium">Base Month:</span>
-                <select
-                  value={monthA}
-                  onChange={(e) => setMonthA(e.target.value)}
-                  className="bg-transparent text-sm font-bold text-sky-300 focus:outline-none cursor-pointer"
-                >
-                  {months.map((m) => (
-                    <option key={`a-${m}`} value={m} className="bg-slate-900 text-slate-100">
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <span className="text-base font-extrabold text-slate-500">VS</span>
-
-              {/* Month B Selector */}
-              <div className="flex items-center gap-2 bg-slate-900/90 px-3 py-1.5 rounded-xl border border-emerald-500/30 shadow-sm">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-xs text-slate-400 font-medium">Comparison Month:</span>
-                <select
-                  value={monthB}
-                  onChange={(e) => setMonthB(e.target.value)}
-                  className="bg-transparent text-sm font-bold text-emerald-300 focus:outline-none cursor-pointer"
-                >
-                  {months.map((m) => (
-                    <option key={`b-${m}`} value={m} className="bg-slate-900 text-slate-100">
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Quick pair jumpers */}
-              {months.length > 2 && (
-                <div className="hidden lg:flex items-center gap-1 ml-2 bg-white/5 p-1 rounded-lg border border-white/5 text-xs">
-                  <span className="text-slate-400 px-1.5 text-[11px]">Quick Pairs:</span>
-                  {months.slice(0, -1).map((m, i) => (
-                    <button
-                      key={`pair-${i}`}
-                      onClick={() => setConsecutivePair(i)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-medium transition ${
-                        monthA === m && monthB === months[i + 1]
-                          ? "bg-indigo-600 text-white font-bold"
-                          : "text-slate-300 hover:bg-white/10"
-                      }`}
+          {/* ── PERIOD & DATE RANGE SELECTION PANEL ── */}
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
+              
+              {/* BASE PERIOD BOX (PERIOD A - SKY BLUE THEME) */}
+              <div className="lg:col-span-5 bg-gradient-to-br from-sky-950/40 via-slate-900/90 to-slate-900/90 border border-sky-500/30 rounded-2xl p-3 shadow-lg backdrop-blur-md">
+                <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-sky-500/20">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" />
+                    <span className="text-xs font-extrabold text-sky-300 uppercase tracking-wider">
+                      Base Period (A)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-slate-400">Month:</span>
+                    <select
+                      value={monthA}
+                      onChange={(e) => handleMonthAChange(e.target.value)}
+                      className="bg-slate-950 border border-sky-500/40 rounded-lg px-2 py-0.5 text-xs font-bold text-sky-200 focus:outline-none focus:border-sky-400 cursor-pointer"
                     >
-                      {m.slice(0, 3)} vs {months[i + 1].slice(0, 3)}
-                    </button>
-                  ))}
+                      {months.map((m) => (
+                        <option key={`a-${m}`} value={m} className="bg-slate-900 text-slate-100">
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              )}
+
+                {/* Date inputs */}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">From Date</label>
+                    <input
+                      type="date"
+                      value={dateFromA}
+                      onChange={(e) => setDateFromA(e.target.value)}
+                      min={d?.meta?.date_min}
+                      max={d?.meta?.date_max}
+                      className="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-400"
+                    />
+                  </div>
+                  <span className="text-sky-400 font-bold text-xs mt-3.5 shrink-0">→</span>
+                  <div className="flex-1 min-w-0">
+                    <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">To Date</label>
+                    <input
+                      type="date"
+                      value={dateToA}
+                      onChange={(e) => setDateToA(e.target.value)}
+                      min={d?.meta?.date_min}
+                      max={d?.meta?.date_max}
+                      className="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick presets for A */}
+                <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-white/5 overflow-x-auto text-[10px]">
+                  <span className="text-slate-500 font-medium shrink-0 mr-1">Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetA("full")}
+                    className="px-1.5 py-0.5 rounded bg-sky-950/60 hover:bg-sky-900/60 text-sky-300 border border-sky-800/40 font-semibold shrink-0"
+                  >
+                    Full Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetA("first-half")}
+                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium shrink-0"
+                  >
+                    1st–15th
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetA("second-half")}
+                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium shrink-0"
+                  >
+                    16th–End
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetA("7d")}
+                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium shrink-0"
+                  >
+                    Last 7D
+                  </button>
+                </div>
+              </div>
+
+              {/* CENTER CONTROLS (VS, SWAP, QUICK PAIRS) */}
+              <div className="lg:col-span-2 flex flex-col items-center justify-center gap-2 py-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-slate-400 tracking-wider bg-slate-900/80 px-2.5 py-1 rounded-xl border border-white/10 shadow-inner">
+                    VS
+                  </span>
+                  <button
+                    onClick={swapMonths}
+                    className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition shadow-sm"
+                    title="Swap Base and Comparison Periods"
+                  >
+                    <svg className="w-4 h-4 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Quick pair jumpers */}
+                {months.length > 2 && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[10px]">
+                    {months.slice(0, -1).map((m, i) => (
+                      <button
+                        key={`pair-${i}`}
+                        onClick={() => setConsecutivePair(i)}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition ${
+                          monthA === m && monthB === months[i + 1]
+                            ? "bg-indigo-600 text-white font-bold"
+                            : "text-slate-400 hover:bg-white/10"
+                        }`}
+                      >
+                        {m.slice(0, 3)} vs {months[i + 1].slice(0, 3)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* COMPARISON PERIOD BOX (PERIOD B - EMERALD GREEN THEME) */}
+              <div className="lg:col-span-5 bg-gradient-to-br from-emerald-950/40 via-slate-900/90 to-slate-900/90 border border-emerald-500/30 rounded-2xl p-3 shadow-lg backdrop-blur-md">
+                <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-emerald-500/20">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs font-extrabold text-emerald-300 uppercase tracking-wider">
+                      Comparison Period (B)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-slate-400">Month:</span>
+                    <select
+                      value={monthB}
+                      onChange={(e) => handleMonthBChange(e.target.value)}
+                      className="bg-slate-950 border border-emerald-500/40 rounded-lg px-2 py-0.5 text-xs font-bold text-emerald-200 focus:outline-none focus:border-emerald-400 cursor-pointer"
+                    >
+                      {months.map((m) => (
+                        <option key={`b-${m}`} value={m} className="bg-slate-900 text-slate-100">
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Date inputs */}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">From Date</label>
+                    <input
+                      type="date"
+                      value={dateFromB}
+                      onChange={(e) => setDateFromB(e.target.value)}
+                      min={d?.meta?.date_min}
+                      max={d?.meta?.date_max}
+                      className="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                  <span className="text-emerald-400 font-bold text-xs mt-3.5 shrink-0">→</span>
+                  <div className="flex-1 min-w-0">
+                    <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">To Date</label>
+                    <input
+                      type="date"
+                      value={dateToB}
+                      onChange={(e) => setDateToB(e.target.value)}
+                      min={d?.meta?.date_min}
+                      max={d?.meta?.date_max}
+                      className="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick presets for B */}
+                <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-white/5 overflow-x-auto text-[10px]">
+                  <span className="text-slate-500 font-medium shrink-0 mr-1">Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetB("full")}
+                    className="px-1.5 py-0.5 rounded bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/40 font-semibold shrink-0"
+                  >
+                    Full Month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetB("first-half")}
+                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium shrink-0"
+                  >
+                    1st–15th
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetB("second-half")}
+                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium shrink-0"
+                  >
+                    16th–End
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetB("match-span")}
+                    className="px-1.5 py-0.5 rounded bg-indigo-950/70 hover:bg-indigo-900/70 text-indigo-300 border border-indigo-700/40 font-bold shrink-0"
+                    title="Match exact start & end day numbers from Base Period"
+                  >
+                    ⚡ Match Base Span
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Swap Button */}
-            <button
-              onClick={() => {
-                const temp = monthA;
-                setMonthA(monthB);
-                setMonthB(temp);
-              }}
-              className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition flex items-center gap-1.5"
-              title="Swap Base and Comparison Months"
-            >
-              <svg className="w-3.5 h-3.5 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              Swap Months
-            </button>
+            {/* Active Selection Summary Bar */}
+            <div className="mt-3 bg-slate-900/60 border border-white/10 rounded-xl px-3 py-1.5 flex flex-wrap items-center justify-between text-xs text-slate-400">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-indigo-400 font-bold">Active Comparison:</span>
+                <span className="bg-sky-950/80 text-sky-200 px-2 py-0.5 rounded border border-sky-800/50 font-mono text-[11px]">
+                  {monthA} ({formatDateDisplay(dateFromA)} → {formatDateDisplay(dateToA)}) · {countA.toLocaleString("en-IN")} lines
+                </span>
+                <span className="text-slate-500 font-bold">VS</span>
+                <span className="bg-emerald-950/80 text-emerald-200 px-2 py-0.5 rounded border border-emerald-800/50 font-mono text-[11px]">
+                  {monthB} ({formatDateDisplay(dateFromB)} → {formatDateDisplay(dateToB)}) · {countB.toLocaleString("en-IN")} lines
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500">
+                {metric === "val" ? "Values in ₹ Lakhs" : "Values in Qty Units"}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1055,13 +1456,17 @@ export default function MonthComparePage() {
 
             <div className="flex items-baseline justify-between mt-1">
               <div>
-                <span className="text-[11px] text-sky-400 font-semibold block">{monthA}</span>
+                <span className="text-[11px] text-sky-400 font-semibold block truncate">
+                  {monthA} {dateFromA && dateToA ? `(${formatDateShort(dateFromA)}–${formatDateShort(dateToA)})` : ""}
+                </span>
                 <span className="text-lg sm:text-xl font-black text-slate-200">
                   {unitSymbol} {L(statsA.po)}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-emerald-400 font-semibold block">{monthB}</span>
+                <span className="text-[11px] text-emerald-400 font-semibold block truncate">
+                  {monthB} {dateFromB && dateToB ? `(${formatDateShort(dateFromB)}–${formatDateShort(dateToB)})` : ""}
+                </span>
                 <span className="text-lg sm:text-xl font-black text-white">
                   {unitSymbol} {L(statsB.po)}
                 </span>
@@ -1069,7 +1474,7 @@ export default function MonthComparePage() {
             </div>
 
             <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-medium">MoM Variance:</span>
+              <span className="text-slate-400 font-medium">Period Variance:</span>
               <span
                 className={`font-bold flex items-center gap-1 ${
                   diffPo >= 0 ? "text-emerald-400" : "text-rose-400"
@@ -1094,13 +1499,17 @@ export default function MonthComparePage() {
 
             <div className="flex items-baseline justify-between mt-1">
               <div>
-                <span className="text-[11px] text-sky-400 font-semibold block">{monthA}</span>
+                <span className="text-[11px] text-sky-400 font-semibold block truncate">
+                  {monthA} {dateFromA && dateToA ? `(${formatDateShort(dateFromA)}–${formatDateShort(dateToA)})` : ""}
+                </span>
                 <span className="text-lg sm:text-xl font-black text-slate-200">
                   {unitSymbol} {L(statsA.grn)}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-emerald-400 font-semibold block">{monthB}</span>
+                <span className="text-[11px] text-emerald-400 font-semibold block truncate">
+                  {monthB} {dateFromB && dateToB ? `(${formatDateShort(dateFromB)}–${formatDateShort(dateToB)})` : ""}
+                </span>
                 <span className="text-lg sm:text-xl font-black text-white">
                   {unitSymbol} {L(statsB.grn)}
                 </span>
@@ -1133,13 +1542,17 @@ export default function MonthComparePage() {
 
             <div className="flex items-baseline justify-between mt-1">
               <div>
-                <span className="text-[11px] text-sky-400 font-semibold block">{monthA}</span>
+                <span className="text-[11px] text-sky-400 font-semibold block truncate">
+                  {monthA} {dateFromA && dateToA ? `(${formatDateShort(dateFromA)}–${formatDateShort(dateToA)})` : ""}
+                </span>
                 <span className={`text-lg sm:text-xl font-black ${frColor(statsA.fr)}`}>
                   {statsA.fr.toFixed(1)}%
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-emerald-400 font-semibold block">{monthB}</span>
+                <span className="text-[11px] text-emerald-400 font-semibold block truncate">
+                  {monthB} {dateFromB && dateToB ? `(${formatDateShort(dateFromB)}–${formatDateShort(dateToB)})` : ""}
+                </span>
                 <span className={`text-lg sm:text-xl font-black ${frColor(statsB.fr)}`}>
                   {statsB.fr.toFixed(1)}%
                 </span>
@@ -1173,13 +1586,17 @@ export default function MonthComparePage() {
 
             <div className="flex items-baseline justify-between mt-1">
               <div>
-                <span className="text-[11px] text-sky-400 font-semibold block">{monthA} Gap</span>
+                <span className="text-[11px] text-sky-400 font-semibold block truncate">
+                  {monthA} Gap
+                </span>
                 <span className="text-lg sm:text-xl font-black text-rose-300">
                   {unitSymbol} {L(statsA.gap)}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-emerald-400 font-semibold block">{monthB} Gap</span>
+                <span className="text-[11px] text-emerald-400 font-semibold block truncate">
+                  {monthB} Gap
+                </span>
                 <span className="text-lg sm:text-xl font-black text-rose-400">
                   {unitSymbol} {L(statsB.gap)}
                 </span>
@@ -1208,7 +1625,7 @@ export default function MonthComparePage() {
             <div className="flex items-center gap-2">
               <span className="text-base">💡</span>
               <span className="font-bold text-indigo-300 uppercase tracking-wide">
-                Key MoM Movers ({monthA} → {monthB}):
+                Key Period Movers ({monthA} → {monthB}):
               </span>
             </div>
 
@@ -1351,11 +1768,11 @@ export default function MonthComparePage() {
               <div className="text-xs text-slate-400 flex items-center gap-4">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
-                  {monthA} (Base)
+                  {monthA} ({formatDateShort(dateFromA)}–{formatDateShort(dateToA)})
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                  {monthB} (Compare)
+                  {monthB} ({formatDateShort(dateFromB)}–{formatDateShort(dateToB)})
                 </span>
               </div>
             </div>
@@ -1380,16 +1797,19 @@ export default function MonthComparePage() {
                       onClick={() => handleSort("aPo")}
                       className="py-3 px-3 text-right bg-sky-950/30 text-sky-300 cursor-pointer hover:text-white transition"
                     >
-                      {monthA} PO ({unitSymbol})
+                      <div>{monthA} PO ({unitSymbol})</div>
+                      <div className="text-[9px] text-sky-400/80 font-normal">{formatDateShort(dateFromA)}–{formatDateShort(dateToA)}</div>
                     </th>
                     <th className="py-3 px-3 text-right bg-sky-950/30 text-sky-300">
-                      {monthA} GRN ({unitSymbol})
+                      <div>{monthA} GRN ({unitSymbol})</div>
+                      <div className="text-[9px] text-sky-400/80 font-normal">{formatDateShort(dateFromA)}–{formatDateShort(dateToA)}</div>
                     </th>
                     <th
                       onClick={() => handleSort("aFr")}
                       className="py-3 px-3 text-center bg-sky-950/30 text-sky-300 cursor-pointer hover:text-white transition border-r border-white/10"
                     >
-                      {monthA} FR %
+                      <div>{monthA} FR %</div>
+                      <div className="text-[9px] text-sky-400/80 font-normal">{formatDateShort(dateFromA)}–{formatDateShort(dateToA)}</div>
                     </th>
 
                     {/* Month B group */}
@@ -1397,16 +1817,19 @@ export default function MonthComparePage() {
                       onClick={() => handleSort("bPo")}
                       className="py-3 px-3 text-right bg-emerald-950/30 text-emerald-300 cursor-pointer hover:text-white transition"
                     >
-                      {monthB} PO ({unitSymbol})
+                      <div>{monthB} PO ({unitSymbol})</div>
+                      <div className="text-[9px] text-emerald-400/80 font-normal">{formatDateShort(dateFromB)}–{formatDateShort(dateToB)}</div>
                     </th>
                     <th className="py-3 px-3 text-right bg-emerald-950/30 text-emerald-300">
-                      {monthB} GRN ({unitSymbol})
+                      <div>{monthB} GRN ({unitSymbol})</div>
+                      <div className="text-[9px] text-emerald-400/80 font-normal">{formatDateShort(dateFromB)}–{formatDateShort(dateToB)}</div>
                     </th>
                     <th
                       onClick={() => handleSort("bFr")}
                       className="py-3 px-3 text-center bg-emerald-950/30 text-emerald-300 cursor-pointer hover:text-white transition border-r border-white/10"
                     >
-                      {monthB} FR %
+                      <div>{monthB} FR %</div>
+                      <div className="text-[9px] text-emerald-400/80 font-normal">{formatDateShort(dateFromB)}–{formatDateShort(dateToB)}</div>
                     </th>
 
                     {/* Variance group */}
@@ -1567,7 +1990,7 @@ export default function MonthComparePage() {
             <div className="px-5 py-3.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-3 bg-slate-950/40">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-slate-200">
-                  SKU Month-on-Month Performance Comparator
+                  SKU Month & Date Range Performance Comparator
                 </span>
                 <span className="text-xs text-slate-400">
                   ({skuComparisonData.length} SKUs displayed)
@@ -1637,16 +2060,20 @@ export default function MonthComparePage() {
                     <th className="py-3 px-4 w-12 text-center">Image</th>
                     <th className="py-3 px-4">SKU Name & Category</th>
                     <th className="py-3 px-3 text-right bg-sky-950/40 text-sky-300">
-                      {monthA} PO ({unitSymbol})
+                      <div>{monthA} PO ({unitSymbol})</div>
+                      <div className="text-[9px] text-sky-400/80 font-normal">{formatDateShort(dateFromA)}–{formatDateShort(dateToA)}</div>
                     </th>
                     <th className="py-3 px-3 text-center bg-sky-950/40 text-sky-300 border-r border-white/10">
-                      {monthA} FR %
+                      <div>{monthA} FR %</div>
+                      <div className="text-[9px] text-sky-400/80 font-normal">{formatDateShort(dateFromA)}–{formatDateShort(dateToA)}</div>
                     </th>
                     <th className="py-3 px-3 text-right bg-emerald-950/40 text-emerald-300">
-                      {monthB} PO ({unitSymbol})
+                      <div>{monthB} PO ({unitSymbol})</div>
+                      <div className="text-[9px] text-emerald-400/80 font-normal">{formatDateShort(dateFromB)}–{formatDateShort(dateToB)}</div>
                     </th>
                     <th className="py-3 px-3 text-center bg-emerald-950/40 text-emerald-300 border-r border-white/10">
-                      {monthB} FR %
+                      <div>{monthB} FR %</div>
+                      <div className="text-[9px] text-emerald-400/80 font-normal">{formatDateShort(dateFromB)}–{formatDateShort(dateToB)}</div>
                     </th>
                     <th className="py-3 px-3 text-right">Δ PO Demand</th>
                     <th className="py-3 px-3 text-center">Δ FR % pts</th>
