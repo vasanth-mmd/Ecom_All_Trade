@@ -38,10 +38,11 @@ function findSheet(wb: XLSX.WorkBook) {
 
 export type UploadProgressCb = (status: string, percent: number) => void;
 
-/* Resilient client-side uploader:
+/* Resilient client-side uploader with Replace Mode:
    1. Reads and parses the Excel file inside the browser memory.
-   2. Transmits records in tiny chunks (1,500 rows per request, ~150KB) so Vercel NEVER returns HTTP 413.
-   3. Ingests records into Supabase trade_orders and updates the dashboard dataset seamlessly. */
+   2. Cleans out existing database records so ONLY the fresh upload is stored.
+   3. Transmits records in safe chunks (1,500 rows per request, ~150KB) so Vercel NEVER returns HTTP 413.
+   4. Ingests records into Supabase trade_orders and updates the dashboard dataset seamlessly. */
 export async function uploadDataFile(
   file: File,
   adminCode: string,
@@ -73,11 +74,33 @@ export async function uploadDataFile(
     );
   }
 
-  onProgress?.(`Uploading ${records.length.toLocaleString()} records in safe chunks to Supabase...`, 20);
-
   const sessionId = "sess_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
   const CHUNK_SIZE = 1500;
   const totalChunks = Math.ceil(records.length / CHUNK_SIZE);
+
+  // 1. Initialize session & wipe previous database records
+  onProgress?.("Clearing previous dataset from Supabase...", 18);
+  const initRes = await fetch("/api/upload", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-admin-code": adminCode,
+    },
+    body: JSON.stringify({
+      action: "init",
+      sessionId,
+      fileName: file.name,
+      totalChunks,
+    }),
+  });
+
+  if (!initRes.ok) {
+    const errJson = await initRes.json().catch(() => null);
+    throw new Error(errJson?.error || "Failed to initialize upload session.");
+  }
+
+  // 2. Upload chunks of the new file
+  onProgress?.(`Uploading ${records.length.toLocaleString()} fresh records to Supabase...`, 20);
 
   for (let i = 0; i < totalChunks; i++) {
     const start = i * CHUNK_SIZE;
@@ -109,6 +132,7 @@ export async function uploadDataFile(
     }
   }
 
+  // 3. Finalize new dataset
   onProgress?.("Finalizing Supabase sync & dashboard update...", 95);
 
   const finalRes = await fetch("/api/upload", {

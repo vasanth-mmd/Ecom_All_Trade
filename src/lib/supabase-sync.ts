@@ -49,6 +49,22 @@ function parseNum(v: any): number {
   return isNaN(n) ? 0 : n;
 }
 
+/** Clear all previous records from Supabase trade_orders so only fresh uploaded data exists */
+export async function clearSupabaseTradeOrders() {
+  try {
+    const supabase = getServiceSupabase();
+    const { error } = await supabase.from("trade_orders").delete().gte("id", 0);
+    if (error) {
+      console.warn("[supabase-sync] Notice on clearing existing trade_orders:", error.message);
+    } else {
+      console.log("[supabase-sync] Cleaned previous records from Supabase trade_orders table.");
+    }
+  } catch (err) {
+    console.warn("[supabase-sync] Clear trade_orders error:", err);
+  }
+}
+
+/** Insert records into Supabase trade_orders in batches */
 export async function syncRecordsToSupabase(records: any[]) {
   if (!records || !records.length) return;
   const supabase = getServiceSupabase();

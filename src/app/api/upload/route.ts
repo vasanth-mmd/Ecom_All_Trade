@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { buildFromRecords, findRawDataSheet, saveDataset, Dataset } from "@/lib/dataset";
-import { syncRecordsToSupabase } from "@/lib/supabase-sync";
+import { syncRecordsToSupabase, clearSupabaseTradeOrders } from "@/lib/supabase-sync";
 import zlib from "zlib";
 import fs from "fs";
 import path from "path";
@@ -76,12 +76,34 @@ export async function POST(req: Request) {
     if (contentType.includes("application/json")) {
       const body = await req.json();
 
-      // Multi-chunk mode
+      // Action: Init (wipes old database records so only new file exists)
+      if (body.action === "init") {
+        const { sessionId, fileName, totalChunks } = body;
+        if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+
+        // Wipe previous database records
+        await clearSupabaseTradeOrders();
+
+        chunkSessions.set(sessionId, {
+          records: [],
+          fileName: fileName || "trade_fr_raw_data.xlsx",
+          totalChunks: totalChunks || 1,
+          createdAt: Date.now(),
+        });
+
+        return NextResponse.json({ ok: true, message: "Initialized session and cleared previous dataset." });
+      }
+
+      // Action: Chunk (receives records batch and inserts into Supabase)
       if (body.action === "chunk") {
         const { sessionId, chunkIndex, totalChunks, records, fileName } = body;
         if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
 
         if (!chunkSessions.has(sessionId)) {
+          // If init wasn't explicitly called, clear old records on first chunk
+          if (chunkIndex === 0) {
+            await clearSupabaseTradeOrders();
+          }
           chunkSessions.set(sessionId, {
             records: [],
             fileName: fileName || "trade_fr_raw_data.xlsx",
@@ -93,7 +115,7 @@ export async function POST(req: Request) {
         const sess = chunkSessions.get(sessionId)!;
         if (Array.isArray(records) && records.length) {
           sess.records.push(...records);
-          // Sync each chunk to Supabase immediately in parallel
+          // Sync this batch into Supabase trade_orders
           try {
             await syncRecordsToSupabase(records);
           } catch (err) {
@@ -109,7 +131,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // Finalize chunked upload
+      // Action: Finalize (compiles new dataset and replaces active snapshot in Supabase storage)
       if (body.action === "finalize") {
         const { sessionId } = body;
         const sess = chunkSessions.get(sessionId);
@@ -121,7 +143,7 @@ export async function POST(req: Request) {
         const savedFileName = sess.fileName;
         chunkSessions.delete(sessionId);
 
-        // Build compact matrix dataset & save
+        // Build compact matrix dataset from only the new file & replace active dataset
         const data = buildFromRecords(allRecs);
         await saveDataset(data, "upload");
 
@@ -141,12 +163,13 @@ export async function POST(req: Request) {
           meta: data.meta,
           storedFile: savedFileName,
           message:
-            `Successfully saved ${data.meta.rows.toLocaleString("en-IN")} records to Supabase and live dashboard.`,
+            `Successfully stored ${data.meta.rows.toLocaleString("en-IN")} fresh records in Supabase and updated dashboard.`,
         });
       }
 
       // Pre-processed dataset direct push
       if (body.dataset && body.records) {
+        await clearSupabaseTradeOrders();
         const data: Dataset = body.dataset;
         await saveDataset(data, "upload");
         try {
@@ -157,7 +180,7 @@ export async function POST(req: Request) {
         return NextResponse.json({
           ok: true,
           meta: data.meta,
-          message: `Saved ${data.meta.rows.toLocaleString("en-IN")} rows to Supabase.`,
+          message: `Replaced dataset with ${data.meta.rows.toLocaleString("en-IN")} new rows in Supabase.`,
         });
       }
     }
@@ -208,6 +231,9 @@ export async function POST(req: Request) {
         { status: 400 }
       );
 
+    // Clear old data from Supabase before saving new file
+    await clearSupabaseTradeOrders();
+
     const data = buildFromRecords(recs);
     await saveDataset(data, "upload");
 
@@ -222,8 +248,7 @@ export async function POST(req: Request) {
       meta: data.meta,
       storedFile: savedFileName,
       message:
-        `Stored in Supabase & dashboard (${savedFileName}): ${data.meta.rows.toLocaleString("en-IN")} PO lines, ` +
-        `${data.meta.po_count.toLocaleString("en-IN")} POs, ${data.meta.date_min} → ${data.meta.date_max}`,
+        `Replaced database with ${data.meta.rows.toLocaleString("en-IN")} fresh PO lines from ${savedFileName}.`,
     });
   } catch (e: any) {
     return NextResponse.json({ error: "Could not process the file: " + e.message }, { status: 500 });
