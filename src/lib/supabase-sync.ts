@@ -53,7 +53,16 @@ function parseNum(v: any): number {
 export async function clearSupabaseTradeOrders() {
   try {
     const supabase = getServiceSupabase();
-    const { error } = await supabase.from("trade_orders").delete().gte("id", 0);
+    
+    // Try fast RPC truncate first
+    const { error: rpcErr } = await supabase.rpc("truncate_trade_orders");
+    if (!rpcErr) {
+      console.log("[supabase-sync] Truncated trade_orders table via RPC.");
+      return;
+    }
+
+    // Fallback standard delete
+    const { error } = await supabase.from("trade_orders").delete().gt("id", 0);
     if (error) {
       console.warn("[supabase-sync] Notice on clearing existing trade_orders:", error.message);
     } else {
