@@ -15,6 +15,8 @@ type Msg = { ok: boolean; text: string } | null;
 export default function UploadButton({ variant = "light" }: { variant?: "dark" | "light" }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [progressMsg, setProgressMsg] = useState("");
+  const [progressPct, setProgressPct] = useState(0);
   const [msg, setMsg] = useState<Msg>(null);
   const [file, setFile] = useState<File | null>(null);
   const [code, setCode] = useState("");
@@ -40,13 +42,21 @@ export default function UploadButton({ variant = "light" }: { variant?: "dark" |
     if (!file) { setMsg({ ok: false, text: "Choose a file first." }); return; }
     if (!code) { setMsg({ ok: false, text: "Enter the admin passcode." }); return; }
     setBusy(true); setMsg(null);
+    setProgressMsg("Starting upload...");
+    setProgressPct(5);
     try {
-      const d = await uploadDataFile(file, code);
+      const d = await uploadDataFile(file, code, (status, pct) => {
+        setProgressMsg(status);
+        setProgressPct(pct);
+      });
       setMsg({ ok: true, text: d.message });
-      setTimeout(() => location.reload(), 1200);
+      setTimeout(() => location.reload(), 1500);
     } catch (e: any) {
       setMsg({ ok: false, text: e.message });
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+      setProgressMsg("");
+    }
   }
 
   return (
@@ -67,7 +77,7 @@ export default function UploadButton({ variant = "light" }: { variant?: "dark" |
           <div className="p-3">
             <p className="text-xs text-slate-500 mb-2">
               Upload a .xlsx / .xls / .csv Raw Data file. Requires the admin
-              passcode. This replaces the currently stored dataset.
+              passcode. This replaces the currently stored dataset and syncs directly to Supabase.
             </p>
             <input
               ref={fileRef}
@@ -93,10 +103,25 @@ export default function UploadButton({ variant = "light" }: { variant?: "dark" |
             <button
               onClick={doUpload}
               disabled={busy || !file}
-              className="mt-2 w-full px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:bg-indigo-300"
+              className="mt-2 w-full px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 transition"
             >
-              {busy ? "Uploading…" : "Upload & replace data"}
+              {busy ? (progressMsg || "Uploading…") : "Upload & replace data"}
             </button>
+
+            {busy && (
+              <div className="mt-2.5">
+                <div className="flex justify-between text-[11px] text-slate-500 mb-1">
+                  <span className="truncate">{progressMsg}</span>
+                  <span className="font-semibold">{progressPct}%</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-indigo-600 h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {msg && (
               <div

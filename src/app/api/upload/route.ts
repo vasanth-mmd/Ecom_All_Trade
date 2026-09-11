@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { buildFromRecords, findRawDataSheet, saveDataset } from "@/lib/dataset";
+import { buildFromRecords, findRawDataSheet, saveDataset, Dataset } from "@/lib/dataset";
+import { syncRecordsToSupabase } from "@/lib/supabase-sync";
 import zlib from "zlib";
 import fs from "fs";
 import path from "path";
@@ -10,7 +11,6 @@ import * as XLSX from "xlsx";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
-// Raise the body-size limit so large Excel uploads don't get rejected with HTTP 413
 export const fetchCache = "force-no-store";
 
 function saveToDownloadFolders(fileName: string, buffer: Buffer) {
@@ -43,6 +43,19 @@ function saveToDownloadFolders(fileName: string, buffer: Buffer) {
   return { fileName, timestampedName };
 }
 
+// In-memory staging for multi-chunk uploads
+const chunkSessions = new Map<string, { records: any[]; fileName: string; totalChunks: number; createdAt: number }>();
+
+// Clean up stale sessions older than 10 minutes
+function cleanOldSessions() {
+  const now = Date.now();
+  for (const [id, s] of chunkSessions.entries()) {
+    if (now - s.createdAt > 10 * 60 * 1000) {
+      chunkSessions.delete(id);
+    }
+  }
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
@@ -54,10 +67,104 @@ export async function POST(req: Request) {
   if (req.headers.get("x-admin-code") !== pass)
     return NextResponse.json({ error: "Invalid admin passcode" }, { status: 403 });
 
+  cleanOldSessions();
+
   try {
-    let recs: any[] = [];
-    let savedFileName = "";
     const contentType = req.headers.get("content-type") || "";
+
+    // ── 1. CHUNKED JSON UPLOAD (Guarantees no HTTP 413 on Vercel for any file size) ──
+    if (contentType.includes("application/json")) {
+      const body = await req.json();
+
+      // Multi-chunk mode
+      if (body.action === "chunk") {
+        const { sessionId, chunkIndex, totalChunks, records, fileName } = body;
+        if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+
+        if (!chunkSessions.has(sessionId)) {
+          chunkSessions.set(sessionId, {
+            records: [],
+            fileName: fileName || "trade_fr_raw_data.xlsx",
+            totalChunks,
+            createdAt: Date.now(),
+          });
+        }
+
+        const sess = chunkSessions.get(sessionId)!;
+        if (Array.isArray(records) && records.length) {
+          sess.records.push(...records);
+          // Sync each chunk to Supabase immediately in parallel
+          try {
+            await syncRecordsToSupabase(records);
+          } catch (err) {
+            console.warn("[upload-chunk] Supabase sync notice:", err);
+          }
+        }
+
+        return NextResponse.json({
+          ok: true,
+          chunkIndex,
+          totalChunks,
+          received: sess.records.length,
+        });
+      }
+
+      // Finalize chunked upload
+      if (body.action === "finalize") {
+        const { sessionId } = body;
+        const sess = chunkSessions.get(sessionId);
+        if (!sess || !sess.records.length) {
+          return NextResponse.json({ error: "No records found in upload session" }, { status: 400 });
+        }
+
+        const allRecs = sess.records;
+        const savedFileName = sess.fileName;
+        chunkSessions.delete(sessionId);
+
+        // Build compact matrix dataset & save
+        const data = buildFromRecords(allRecs);
+        await saveDataset(data, "upload");
+
+        // Save server download backup
+        try {
+          const ws = XLSX.utils.json_to_sheet(allRecs.slice(0, 50000));
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Raw Data");
+          const excelBuf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+          saveToDownloadFolders(savedFileName, excelBuf);
+        } catch (e) {
+          console.warn("[upload] Download backup notice:", e);
+        }
+
+        return NextResponse.json({
+          ok: true,
+          meta: data.meta,
+          storedFile: savedFileName,
+          message:
+            `Successfully saved ${data.meta.rows.toLocaleString("en-IN")} records to Supabase and live dashboard.`,
+        });
+      }
+
+      // Pre-processed dataset direct push
+      if (body.dataset && body.records) {
+        const data: Dataset = body.dataset;
+        await saveDataset(data, "upload");
+        try {
+          await syncRecordsToSupabase(body.records);
+        } catch (e) {
+          console.warn("[upload] Supabase sync notice:", e);
+        }
+        return NextResponse.json({
+          ok: true,
+          meta: data.meta,
+          message: `Saved ${data.meta.rows.toLocaleString("en-IN")} rows to Supabase.`,
+        });
+      }
+    }
+
+    // ── 2. STANDARD MULTIPART / FORM-DATA UPLOAD (For smaller files) ──
+    let recs: any[] = [];
+    let savedFileName = "trade_fr_raw_data.xlsx";
 
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
@@ -83,19 +190,10 @@ export async function POST(req: Request) {
         recs = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: true }) as any[];
       }
     } else {
-      // Fallback for raw compressed/uncompressed JSON
       const raw = Buffer.from(await req.arrayBuffer());
       if (!raw.length) return NextResponse.json({ error: "No data received" }, { status: 400 });
       const jsonBuf = req.headers.get("content-encoding") === "gzip" ? zlib.gunzipSync(raw) : raw;
       recs = JSON.parse(jsonBuf.toString("utf8"));
-
-      // Also generate and store an .xlsx in the download folder
-      savedFileName = "trade_fr_raw_data.xlsx";
-      const ws = XLSX.utils.json_to_sheet(recs);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Raw Data");
-      const excelBuf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
-      saveToDownloadFolders(savedFileName, excelBuf);
     }
 
     if (!Array.isArray(recs) || !recs.length)
@@ -106,16 +204,14 @@ export async function POST(req: Request) {
     const hasTrade = keys0.some((k) => k.includes("trade"));
     if (!hasPo || !hasTrade)
       return NextResponse.json(
-        { error: "Columns not recognised — expected the Trade FR Raw Data format (PO Number, Trade, City, PO Qty, Po Value, GRN Qty, GRN Value, ...)" },
+        { error: "Columns not recognised — expected Trade FR Raw Data columns (PO Number, Trade, City, PO Qty, Po Value, GRN Qty, GRN Value...)" },
         { status: 400 }
       );
 
     const data = buildFromRecords(recs);
     await saveDataset(data, "upload");
 
-    // Sync raw 17-column order rows to Supabase trade_orders table
     try {
-      const { syncRecordsToSupabase } = await import("@/lib/supabase-sync");
       await syncRecordsToSupabase(recs);
     } catch (dbErr) {
       console.warn("[upload] Supabase sync notice:", dbErr);
@@ -126,11 +222,10 @@ export async function POST(req: Request) {
       meta: data.meta,
       storedFile: savedFileName,
       message:
-        `Stored in Supabase, database & download folder (${savedFileName}): ${data.meta.rows.toLocaleString("en-IN")} PO lines, ` +
+        `Stored in Supabase & dashboard (${savedFileName}): ${data.meta.rows.toLocaleString("en-IN")} PO lines, ` +
         `${data.meta.po_count.toLocaleString("en-IN")} POs, ${data.meta.date_min} → ${data.meta.date_max}`,
     });
   } catch (e: any) {
     return NextResponse.json({ error: "Could not process the file: " + e.message }, { status: 500 });
   }
 }
-

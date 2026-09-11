@@ -37,6 +37,8 @@ function FileUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [progressMsg, setProgressMsg] = useState("");
+  const [progressPct, setProgressPct] = useState(0);
   const [msg, setMsg] = useState<Msg>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -51,8 +53,13 @@ function FileUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
     }
     setBusy(true);
     setMsg(null);
+    setProgressMsg("Starting upload...");
+    setProgressPct(5);
     try {
-      const d = await uploadDataFile(file, code);
+      const d = await uploadDataFile(file, code, (status, pct) => {
+        setProgressMsg(status);
+        setProgressPct(pct);
+      });
       setMsg({ ok: true, text: d.message });
       setFile(null);
       if (fileRef.current) fileRef.current.value = "";
@@ -62,6 +69,7 @@ function FileUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
       setMsg({ ok: false, text: e.message });
     } finally {
       setBusy(false);
+      setProgressMsg("");
     }
   }
 
@@ -69,11 +77,10 @@ function FileUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
     <>
       <p className="mt-5 text-sm text-slate-500">
         Upload a Trade FR Raw Data file (.xlsx, .xls or .csv) directly from
-        your computer. The file will be saved in the <b>download folder</b> on the server,
-        and its records will update the live dashboard dataset.
+        your computer. Records will be safely uploaded in chunks to <b>Supabase</b> and update the live dashboard dataset.
       </p>
 
-      <div className="mt-6 border-2 border-dashed rounded-2xl p-6 sm:p-10 text-center bg-white border-indigo-300">
+      <div className="mt-6 border-2 border-dashed rounded-2xl p-6 sm:p-10 text-center bg-white border-indigo-300 shadow-sm">
         <div className="text-4xl">⭱</div>
         <div className="mt-2 font-semibold text-slate-800">
           {file ? file.name : "Choose a .xlsx / .xls / .csv file"}
@@ -110,10 +117,25 @@ function FileUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
         <button
           onClick={doUpload}
           disabled={busy || !file}
-          className="mt-4 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 transition"
+          className="mt-4 px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 transition"
         >
-          {busy ? "Uploading & Saving…" : "Upload & save to download folder"}
+          {busy ? (progressMsg || "Uploading & Processing…") : "Upload & Sync to Supabase"}
         </button>
+
+        {busy && (
+          <div className="mt-4 max-w-sm mx-auto">
+            <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+              <span className="truncate font-medium">{progressMsg}</span>
+              <span className="font-bold text-indigo-600">{progressPct}%</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+              <div
+                className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {msg && <ResultBox msg={msg} />}
