@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Allow large file uploads (Excel files) – prevents HTTP 413 on the upload route
+  experimental: {
+    serverComponentsExternalPackages: ["xlsx"],
+  },
   async rewrites() {
     return {
       // beforeFiles is REQUIRED here: these paths exist as physical files in
@@ -15,4 +19,3 @@ const nextConfig = {
 };
 
 export default nextConfig;
-  
