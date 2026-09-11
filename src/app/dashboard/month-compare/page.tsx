@@ -51,6 +51,22 @@ const dateStrToYmd = (s: string): number => {
   return +s.replaceAll("-", "") || 0;
 };
 
+// Extract day number (1..31) from date string YYYY-MM-DD
+const getDayFromDateStr = (dateStr: string): number => {
+  if (!dateStr || dateStr.length < 10) return 1;
+  const day = parseInt(dateStr.slice(8, 10), 10);
+  return isNaN(day) ? 1 : day;
+};
+
+// Get max days in month for a given date or month
+const getMaxDaysInMonth = (dateStr: string): number => {
+  if (!dateStr || dateStr.length < 7) return 31;
+  const y = parseInt(dateStr.slice(0, 4), 10);
+  const m = parseInt(dateStr.slice(5, 7), 10);
+  if (isNaN(y) || isNaN(m)) return 31;
+  return new Date(y, m, 0).getDate();
+};
+
 // Format YYYY-MM-DD into "DD MMM YYYY"
 const formatDateDisplay = (dateStr: string): string => {
   if (!dateStr) return "";
@@ -376,6 +392,15 @@ export default function MonthComparePage() {
   const citySet = useMemo(() => (selCities.length ? new Set(selCities) : null), [selCities]);
   const catSet = useMemo(() => (selCategories.length ? new Set(selCategories) : null), [selCategories]);
   const statusSet = useMemo(() => (selStatuses.length ? new Set(selStatuses) : null), [selStatuses]);
+
+  // Day calculations for Period A & B
+  const maxDaysA = useMemo(() => getMaxDaysInMonth(dateFromA || dateToA || "2026-08-01"), [dateFromA, dateToA]);
+  const dayFromA = useMemo(() => getDayFromDateStr(dateFromA), [dateFromA]);
+  const dayToA = useMemo(() => getDayFromDateStr(dateToA), [dateToA]);
+
+  const maxDaysB = useMemo(() => getMaxDaysInMonth(dateFromB || dateToB || "2026-09-01"), [dateFromB, dateToB]);
+  const dayFromB = useMemo(() => getDayFromDateStr(dateFromB), [dateFromB]);
+  const dayToB = useMemo(() => getDayFromDateStr(dateToB), [dateToB]);
 
   // Date range conversions to YYYYMMDD
   const ymdFromA = useMemo(() => dateStrToYmd(dateFromA), [dateFromA]);
@@ -876,6 +901,62 @@ export default function MonthComparePage() {
     }
   };
 
+  // Day handlers for Period A
+  const handleDayFromAChange = (newDay: number) => {
+    const ym = dateFromA ? dateFromA.slice(0, 7) : (monthDateBounds.get(monthA)?.min.slice(0, 7) || "2026-08");
+    const newDate = `${ym}-${String(newDay).padStart(2, "0")}`;
+    setDateFromA(newDate);
+    if (dateToA && dateToA < newDate) {
+      setDateToA(newDate);
+    }
+  };
+
+  const handleDayToAChange = (newDay: number) => {
+    const ym = dateToA ? dateToA.slice(0, 7) : (monthDateBounds.get(monthA)?.max.slice(0, 7) || "2026-08");
+    const newDate = `${ym}-${String(newDay).padStart(2, "0")}`;
+    setDateToA(newDate);
+    if (dateFromA && dateFromA > newDate) {
+      setDateFromA(newDate);
+    }
+  };
+
+  const setDayRangeA = (startDay: number, endDay: number) => {
+    const ym = dateFromA ? dateFromA.slice(0, 7) : (monthDateBounds.get(monthA)?.min.slice(0, 7) || "2026-08");
+    const maxD = getMaxDaysInMonth(`${ym}-01`);
+    const d1 = Math.max(1, Math.min(startDay, maxD));
+    const d2 = Math.max(d1, Math.min(endDay, maxD));
+    setDateFromA(`${ym}-${String(d1).padStart(2, "0")}`);
+    setDateToA(`${ym}-${String(d2).padStart(2, "0")}`);
+  };
+
+  // Day handlers for Period B
+  const handleDayFromBChange = (newDay: number) => {
+    const ym = dateFromB ? dateFromB.slice(0, 7) : (monthDateBounds.get(monthB)?.min.slice(0, 7) || "2026-09");
+    const newDate = `${ym}-${String(newDay).padStart(2, "0")}`;
+    setDateFromB(newDate);
+    if (dateToB && dateToB < newDate) {
+      setDateToB(newDate);
+    }
+  };
+
+  const handleDayToBChange = (newDay: number) => {
+    const ym = dateToB ? dateToB.slice(0, 7) : (monthDateBounds.get(monthB)?.max.slice(0, 7) || "2026-09");
+    const newDate = `${ym}-${String(newDay).padStart(2, "0")}`;
+    setDateToB(newDate);
+    if (dateFromB && dateFromB > newDate) {
+      setDateFromB(newDate);
+    }
+  };
+
+  const setDayRangeB = (startDay: number, endDay: number) => {
+    const ym = dateFromB ? dateFromB.slice(0, 7) : (monthDateBounds.get(monthB)?.min.slice(0, 7) || "2026-09");
+    const maxD = getMaxDaysInMonth(`${ym}-01`);
+    const d1 = Math.max(1, Math.min(startDay, maxD));
+    const d2 = Math.max(d1, Math.min(endDay, maxD));
+    setDateFromB(`${ym}-${String(d1).padStart(2, "0")}`);
+    setDateToB(`${ym}-${String(d2).padStart(2, "0")}`);
+  };
+
   // Apply Presets for Base Period A
   const applyPresetA = (preset: "full" | "first-half" | "second-half" | "7d") => {
     const b = monthDateBounds.get(monthA);
@@ -1043,14 +1124,14 @@ export default function MonthComparePage() {
               <div className="flex items-center gap-2">
                 <span className="text-2xl">⚖️</span>
                 <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-sky-300 bg-clip-text text-transparent">
-                  Month & Date Range Comparison Dashboard
+                  Month & Day-Range Comparison Dashboard
                 </h1>
                 <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
                   Dual-Period Analytics
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                Compare custom date ranges, monthly periods, growth shifts, demand variations, and fill rate performance
+                Select custom day spans (e.g. 1 to 5, 1 to 6), full months, demand variations, and fill rate performance
               </p>
             </div>
 
@@ -1098,7 +1179,7 @@ export default function MonthComparePage() {
             </div>
           </div>
 
-          {/* ── PERIOD & DATE RANGE SELECTION PANEL ── */}
+          {/* ── PERIOD & DAY/DATE RANGE SELECTION PANEL ── */}
           <div className="mt-4 pt-4 border-t border-white/10">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
               
@@ -1127,63 +1208,106 @@ export default function MonthComparePage() {
                   </div>
                 </div>
 
-                {/* Date inputs */}
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">From Date</label>
-                    <input
-                      type="date"
-                      value={dateFromA}
-                      onChange={(e) => setDateFromA(e.target.value)}
-                      min={d?.meta?.date_min}
-                      max={d?.meta?.date_max}
-                      className="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-400"
-                    />
+                {/* Day Dropdowns + Date Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                  {/* From Day / Date */}
+                  <div className="bg-slate-950/80 border border-sky-500/20 rounded-xl p-2">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
+                      <span>From Date:</span>
+                      <span className="text-sky-300 font-bold font-mono">Day {dayFromA}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={dayFromA}
+                        onChange={(e) => handleDayFromAChange(parseInt(e.target.value, 10))}
+                        className="bg-sky-950 border border-sky-500/50 text-sky-200 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
+                        title="Select Start Day of Month"
+                      >
+                        {Array.from({ length: maxDaysA }, (_, i) => i + 1).map((day) => (
+                          <option key={`a-from-day-${day}`} value={day} className="bg-slate-900 text-slate-100">
+                            Day {day}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={dateFromA}
+                        onChange={(e) => setDateFromA(e.target.value)}
+                        min={d?.meta?.date_min}
+                        max={d?.meta?.date_max}
+                        className="flex-1 min-w-0 bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-400"
+                      />
+                    </div>
                   </div>
-                  <span className="text-sky-400 font-bold text-xs mt-3.5 shrink-0">→</span>
-                  <div className="flex-1 min-w-0">
-                    <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">To Date</label>
-                    <input
-                      type="date"
-                      value={dateToA}
-                      onChange={(e) => setDateToA(e.target.value)}
-                      min={d?.meta?.date_min}
-                      max={d?.meta?.date_max}
-                      className="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-400"
-                    />
+
+                  {/* To Day / Date */}
+                  <div className="bg-slate-950/80 border border-sky-500/20 rounded-xl p-2">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
+                      <span>To Date:</span>
+                      <span className="text-sky-300 font-bold font-mono">Day {dayToA}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={dayToA}
+                        onChange={(e) => handleDayToAChange(parseInt(e.target.value, 10))}
+                        className="bg-sky-950 border border-sky-500/50 text-sky-200 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
+                        title="Select End Day of Month"
+                      >
+                        {Array.from({ length: maxDaysA }, (_, i) => i + 1).map((day) => (
+                          <option key={`a-to-day-${day}`} value={day} className="bg-slate-900 text-slate-100">
+                            Day {day}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={dateToA}
+                        onChange={(e) => setDateToA(e.target.value)}
+                        min={d?.meta?.date_min}
+                        max={d?.meta?.date_max}
+                        className="flex-1 min-w-0 bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-400"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Quick presets for A */}
+                {/* Quick Day Chips: 1-5, 1-6, 1-7, 1-10, 1-15, 16-End, Full */}
                 <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-white/5 overflow-x-auto text-[10px]">
-                  <span className="text-slate-500 font-medium shrink-0 mr-1">Presets:</span>
+                  <span className="text-slate-400 font-semibold shrink-0 mr-0.5">Quick Days:</span>
+                  {[
+                    { label: "1–5", start: 1, end: 5 },
+                    { label: "1–6", start: 1, end: 6 },
+                    { label: "1–7", start: 1, end: 7 },
+                    { label: "1–10", start: 1, end: 10 },
+                    { label: "1–15", start: 1, end: 15 },
+                    { label: "16–End", start: 16, end: maxDaysA },
+                  ].map((chip) => {
+                    const active = dayFromA === chip.start && dayToA === chip.end;
+                    return (
+                      <button
+                        key={`chip-a-${chip.label}`}
+                        type="button"
+                        onClick={() => setDayRangeA(chip.start, chip.end)}
+                        className={`px-2 py-0.5 rounded font-bold transition shrink-0 ${
+                          active
+                            ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-500/40"
+                            : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+                        }`}
+                      >
+                        {chip.label}
+                      </button>
+                    );
+                  })}
                   <button
                     type="button"
                     onClick={() => applyPresetA("full")}
-                    className="px-1.5 py-0.5 rounded bg-sky-950/60 hover:bg-sky-900/60 text-sky-300 border border-sky-800/40 font-semibold shrink-0"
+                    className={`px-2 py-0.5 rounded font-bold transition shrink-0 ${
+                      dayFromA === 1 && dayToA === maxDaysA
+                        ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-500/40"
+                        : "bg-sky-950/60 hover:bg-sky-900/60 text-sky-300 border border-sky-800/40"
+                    }`}
                   >
                     Full Month
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPresetA("first-half")}
-                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium shrink-0"
-                  >
-                    1st–15th
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPresetA("second-half")}
-                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium shrink-0"
-                  >
-                    16th–End
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPresetA("7d")}
-                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium shrink-0"
-                  >
-                    Last 7D
                   </button>
                 </div>
               </div>
@@ -1250,64 +1374,114 @@ export default function MonthComparePage() {
                   </div>
                 </div>
 
-                {/* Date inputs */}
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0">
-                    <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">From Date</label>
-                    <input
-                      type="date"
-                      value={dateFromB}
-                      onChange={(e) => setDateFromB(e.target.value)}
-                      min={d?.meta?.date_min}
-                      max={d?.meta?.date_max}
-                      className="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-400"
-                    />
+                {/* Day Dropdowns + Date Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                  {/* From Day / Date */}
+                  <div className="bg-slate-950/80 border border-emerald-500/20 rounded-xl p-2">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
+                      <span>From Date:</span>
+                      <span className="text-emerald-300 font-bold font-mono">Day {dayFromB}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={dayFromB}
+                        onChange={(e) => handleDayFromBChange(parseInt(e.target.value, 10))}
+                        className="bg-emerald-950 border border-emerald-500/50 text-emerald-200 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
+                        title="Select Start Day of Month"
+                      >
+                        {Array.from({ length: maxDaysB }, (_, i) => i + 1).map((day) => (
+                          <option key={`b-from-day-${day}`} value={day} className="bg-slate-900 text-slate-100">
+                            Day {day}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={dateFromB}
+                        onChange={(e) => setDateFromB(e.target.value)}
+                        min={d?.meta?.date_min}
+                        max={d?.meta?.date_max}
+                        className="flex-1 min-w-0 bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-400"
+                      />
+                    </div>
                   </div>
-                  <span className="text-emerald-400 font-bold text-xs mt-3.5 shrink-0">→</span>
-                  <div className="flex-1 min-w-0">
-                    <label className="text-[10px] text-slate-400 font-semibold block mb-0.5">To Date</label>
-                    <input
-                      type="date"
-                      value={dateToB}
-                      onChange={(e) => setDateToB(e.target.value)}
-                      min={d?.meta?.date_min}
-                      max={d?.meta?.date_max}
-                      className="w-full bg-slate-950/80 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-400"
-                    />
+
+                  {/* To Day / Date */}
+                  <div className="bg-slate-950/80 border border-emerald-500/20 rounded-xl p-2">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
+                      <span>To Date:</span>
+                      <span className="text-emerald-300 font-bold font-mono">Day {dayToB}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={dayToB}
+                        onChange={(e) => handleDayToBChange(parseInt(e.target.value, 10))}
+                        className="bg-emerald-950 border border-emerald-500/50 text-emerald-200 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
+                        title="Select End Day of Month"
+                      >
+                        {Array.from({ length: maxDaysB }, (_, i) => i + 1).map((day) => (
+                          <option key={`b-to-day-${day}`} value={day} className="bg-slate-900 text-slate-100">
+                            Day {day}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="date"
+                        value={dateToB}
+                        onChange={(e) => setDateToB(e.target.value)}
+                        min={d?.meta?.date_min}
+                        max={d?.meta?.date_max}
+                        className="flex-1 min-w-0 bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-400"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Quick presets for B */}
+                {/* Quick Day Presets */}
                 <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-white/5 overflow-x-auto text-[10px]">
-                  <span className="text-slate-500 font-medium shrink-0 mr-1">Presets:</span>
+                  <span className="text-slate-400 font-semibold shrink-0 mr-0.5">Quick Days:</span>
+                  {[
+                    { label: "1–5", start: 1, end: 5 },
+                    { label: "1–6", start: 1, end: 6 },
+                    { label: "1–7", start: 1, end: 7 },
+                    { label: "1–10", start: 1, end: 10 },
+                    { label: "1–15", start: 1, end: 15 },
+                    { label: "16–End", start: 16, end: maxDaysB },
+                  ].map((chip) => {
+                    const active = dayFromB === chip.start && dayToB === chip.end;
+                    return (
+                      <button
+                        key={`chip-b-${chip.label}`}
+                        type="button"
+                        onClick={() => setDayRangeB(chip.start, chip.end)}
+                        className={`px-2 py-0.5 rounded font-bold transition shrink-0 ${
+                          active
+                            ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/40"
+                            : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+                        }`}
+                      >
+                        {chip.label}
+                      </button>
+                    );
+                  })}
                   <button
                     type="button"
                     onClick={() => applyPresetB("full")}
-                    className="px-1.5 py-0.5 rounded bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/40 font-semibold shrink-0"
+                    className={`px-2 py-0.5 rounded font-bold transition shrink-0 ${
+                      dayFromB === 1 && dayToB === maxDaysB
+                        ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/40"
+                        : "bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/40"
+                    }`}
                   >
                     Full Month
                   </button>
                   <button
                     type="button"
-                    onClick={() => applyPresetB("first-half")}
-                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium shrink-0"
-                  >
-                    1st–15th
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPresetB("second-half")}
-                    className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium shrink-0"
-                  >
-                    16th–End
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => applyPresetB("match-span")}
-                    className="px-1.5 py-0.5 rounded bg-indigo-950/70 hover:bg-indigo-900/70 text-indigo-300 border border-indigo-700/40 font-bold shrink-0"
-                    title="Match exact start & end day numbers from Base Period"
+                    className="px-2 py-0.5 rounded bg-indigo-950/70 hover:bg-indigo-900/70 text-indigo-300 border border-indigo-700/40 font-bold shrink-0"
+                    title={`Match exact start & end days (${dayFromA} to ${dayToA}) from Base Period`}
                   >
-                    ⚡ Match Base Span
+                    ⚡ Match Base ({dayFromA}–{dayToA})
                   </button>
                 </div>
               </div>
@@ -1318,11 +1492,11 @@ export default function MonthComparePage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-indigo-400 font-bold">Active Comparison:</span>
                 <span className="bg-sky-950/80 text-sky-200 px-2 py-0.5 rounded border border-sky-800/50 font-mono text-[11px]">
-                  {monthA} ({formatDateDisplay(dateFromA)} → {formatDateDisplay(dateToA)}) · {countA.toLocaleString("en-IN")} lines
+                  {monthA} · Day {dayFromA}–{dayToA} ({formatDateDisplay(dateFromA)} → {formatDateDisplay(dateToA)}) · {countA.toLocaleString("en-IN")} lines
                 </span>
                 <span className="text-slate-500 font-bold">VS</span>
                 <span className="bg-emerald-950/80 text-emerald-200 px-2 py-0.5 rounded border border-emerald-800/50 font-mono text-[11px]">
-                  {monthB} ({formatDateDisplay(dateFromB)} → {formatDateDisplay(dateToB)}) · {countB.toLocaleString("en-IN")} lines
+                  {monthB} · Day {dayFromB}–{dayToB} ({formatDateDisplay(dateFromB)} → {formatDateDisplay(dateToB)}) · {countB.toLocaleString("en-IN")} lines
                 </span>
               </div>
               <div className="text-[11px] text-slate-500">
@@ -1457,7 +1631,7 @@ export default function MonthComparePage() {
             <div className="flex items-baseline justify-between mt-1">
               <div>
                 <span className="text-[11px] text-sky-400 font-semibold block truncate">
-                  {monthA} {dateFromA && dateToA ? `(${formatDateShort(dateFromA)}–${formatDateShort(dateToA)})` : ""}
+                  {monthA} (Day {dayFromA}–{dayToA})
                 </span>
                 <span className="text-lg sm:text-xl font-black text-slate-200">
                   {unitSymbol} {L(statsA.po)}
@@ -1465,7 +1639,7 @@ export default function MonthComparePage() {
               </div>
               <div className="text-right">
                 <span className="text-[11px] text-emerald-400 font-semibold block truncate">
-                  {monthB} {dateFromB && dateToB ? `(${formatDateShort(dateFromB)}–${formatDateShort(dateToB)})` : ""}
+                  {monthB} (Day {dayFromB}–{dayToB})
                 </span>
                 <span className="text-lg sm:text-xl font-black text-white">
                   {unitSymbol} {L(statsB.po)}
@@ -1500,7 +1674,7 @@ export default function MonthComparePage() {
             <div className="flex items-baseline justify-between mt-1">
               <div>
                 <span className="text-[11px] text-sky-400 font-semibold block truncate">
-                  {monthA} {dateFromA && dateToA ? `(${formatDateShort(dateFromA)}–${formatDateShort(dateToA)})` : ""}
+                  {monthA} (Day {dayFromA}–{dayToA})
                 </span>
                 <span className="text-lg sm:text-xl font-black text-slate-200">
                   {unitSymbol} {L(statsA.grn)}
@@ -1508,7 +1682,7 @@ export default function MonthComparePage() {
               </div>
               <div className="text-right">
                 <span className="text-[11px] text-emerald-400 font-semibold block truncate">
-                  {monthB} {dateFromB && dateToB ? `(${formatDateShort(dateFromB)}–${formatDateShort(dateToB)})` : ""}
+                  {monthB} (Day {dayFromB}–{dayToB})
                 </span>
                 <span className="text-lg sm:text-xl font-black text-white">
                   {unitSymbol} {L(statsB.grn)}
@@ -1543,7 +1717,7 @@ export default function MonthComparePage() {
             <div className="flex items-baseline justify-between mt-1">
               <div>
                 <span className="text-[11px] text-sky-400 font-semibold block truncate">
-                  {monthA} {dateFromA && dateToA ? `(${formatDateShort(dateFromA)}–${formatDateShort(dateToA)})` : ""}
+                  {monthA} (Day {dayFromA}–{dayToA})
                 </span>
                 <span className={`text-lg sm:text-xl font-black ${frColor(statsA.fr)}`}>
                   {statsA.fr.toFixed(1)}%
@@ -1551,7 +1725,7 @@ export default function MonthComparePage() {
               </div>
               <div className="text-right">
                 <span className="text-[11px] text-emerald-400 font-semibold block truncate">
-                  {monthB} {dateFromB && dateToB ? `(${formatDateShort(dateFromB)}–${formatDateShort(dateToB)})` : ""}
+                  {monthB} (Day {dayFromB}–{dayToB})
                 </span>
                 <span className={`text-lg sm:text-xl font-black ${frColor(statsB.fr)}`}>
                   {statsB.fr.toFixed(1)}%
@@ -1768,11 +1942,11 @@ export default function MonthComparePage() {
               <div className="text-xs text-slate-400 flex items-center gap-4">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
-                  {monthA} ({formatDateShort(dateFromA)}–{formatDateShort(dateToA)})
+                  {monthA} (Day {dayFromA}–{dayToA})
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                  {monthB} ({formatDateShort(dateFromB)}–{formatDateShort(dateToB)})
+                  {monthB} (Day {dayFromB}–{dayToB})
                 </span>
               </div>
             </div>
@@ -1798,18 +1972,18 @@ export default function MonthComparePage() {
                       className="py-3 px-3 text-right bg-sky-950/30 text-sky-300 cursor-pointer hover:text-white transition"
                     >
                       <div>{monthA} PO ({unitSymbol})</div>
-                      <div className="text-[9px] text-sky-400/80 font-normal">{formatDateShort(dateFromA)}–{formatDateShort(dateToA)}</div>
+                      <div className="text-[9px] text-sky-400/80 font-normal">Day {dayFromA}–{dayToA} ({formatDateShort(dateFromA)}–{formatDateShort(dateToA)})</div>
                     </th>
                     <th className="py-3 px-3 text-right bg-sky-950/30 text-sky-300">
                       <div>{monthA} GRN ({unitSymbol})</div>
-                      <div className="text-[9px] text-sky-400/80 font-normal">{formatDateShort(dateFromA)}–{formatDateShort(dateToA)}</div>
+                      <div className="text-[9px] text-sky-400/80 font-normal">Day {dayFromA}–{dayToA}</div>
                     </th>
                     <th
                       onClick={() => handleSort("aFr")}
                       className="py-3 px-3 text-center bg-sky-950/30 text-sky-300 cursor-pointer hover:text-white transition border-r border-white/10"
                     >
                       <div>{monthA} FR %</div>
-                      <div className="text-[9px] text-sky-400/80 font-normal">{formatDateShort(dateFromA)}–{formatDateShort(dateToA)}</div>
+                      <div className="text-[9px] text-sky-400/80 font-normal">Day {dayFromA}–{dayToA}</div>
                     </th>
 
                     {/* Month B group */}
@@ -1818,18 +1992,18 @@ export default function MonthComparePage() {
                       className="py-3 px-3 text-right bg-emerald-950/30 text-emerald-300 cursor-pointer hover:text-white transition"
                     >
                       <div>{monthB} PO ({unitSymbol})</div>
-                      <div className="text-[9px] text-emerald-400/80 font-normal">{formatDateShort(dateFromB)}–{formatDateShort(dateToB)}</div>
+                      <div className="text-[9px] text-emerald-400/80 font-normal">Day {dayFromB}–{dayToB} ({formatDateShort(dateFromB)}–{formatDateShort(dateToB)})</div>
                     </th>
                     <th className="py-3 px-3 text-right bg-emerald-950/30 text-emerald-300">
                       <div>{monthB} GRN ({unitSymbol})</div>
-                      <div className="text-[9px] text-emerald-400/80 font-normal">{formatDateShort(dateFromB)}–{formatDateShort(dateToB)}</div>
+                      <div className="text-[9px] text-emerald-400/80 font-normal">Day {dayFromB}–{dayToB}</div>
                     </th>
                     <th
                       onClick={() => handleSort("bFr")}
                       className="py-3 px-3 text-center bg-emerald-950/30 text-emerald-300 cursor-pointer hover:text-white transition border-r border-white/10"
                     >
                       <div>{monthB} FR %</div>
-                      <div className="text-[9px] text-emerald-400/80 font-normal">{formatDateShort(dateFromB)}–{formatDateShort(dateToB)}</div>
+                      <div className="text-[9px] text-emerald-400/80 font-normal">Day {dayFromB}–{dayToB}</div>
                     </th>
 
                     {/* Variance group */}
@@ -1990,7 +2164,7 @@ export default function MonthComparePage() {
             <div className="px-5 py-3.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-3 bg-slate-950/40">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-slate-200">
-                  SKU Month & Date Range Performance Comparator
+                  SKU Month & Day-Range Performance Comparator
                 </span>
                 <span className="text-xs text-slate-400">
                   ({skuComparisonData.length} SKUs displayed)
@@ -2061,19 +2235,19 @@ export default function MonthComparePage() {
                     <th className="py-3 px-4">SKU Name & Category</th>
                     <th className="py-3 px-3 text-right bg-sky-950/40 text-sky-300">
                       <div>{monthA} PO ({unitSymbol})</div>
-                      <div className="text-[9px] text-sky-400/80 font-normal">{formatDateShort(dateFromA)}–{formatDateShort(dateToA)}</div>
+                      <div className="text-[9px] text-sky-400/80 font-normal">Day {dayFromA}–{dayToA} ({formatDateShort(dateFromA)}–{formatDateShort(dateToA)})</div>
                     </th>
                     <th className="py-3 px-3 text-center bg-sky-950/40 text-sky-300 border-r border-white/10">
                       <div>{monthA} FR %</div>
-                      <div className="text-[9px] text-sky-400/80 font-normal">{formatDateShort(dateFromA)}–{formatDateShort(dateToA)}</div>
+                      <div className="text-[9px] text-sky-400/80 font-normal">Day {dayFromA}–{dayToA}</div>
                     </th>
                     <th className="py-3 px-3 text-right bg-emerald-950/40 text-emerald-300">
                       <div>{monthB} PO ({unitSymbol})</div>
-                      <div className="text-[9px] text-emerald-400/80 font-normal">{formatDateShort(dateFromB)}–{formatDateShort(dateToB)}</div>
+                      <div className="text-[9px] text-emerald-400/80 font-normal">Day {dayFromB}–{dayToB} ({formatDateShort(dateFromB)}–{formatDateShort(dateToB)})</div>
                     </th>
                     <th className="py-3 px-3 text-center bg-emerald-950/40 text-emerald-300 border-r border-white/10">
                       <div>{monthB} FR %</div>
-                      <div className="text-[9px] text-emerald-400/80 font-normal">{formatDateShort(dateFromB)}–{formatDateShort(dateToB)}</div>
+                      <div className="text-[9px] text-emerald-400/80 font-normal">Day {dayFromB}–{dayToB}</div>
                     </th>
                     <th className="py-3 px-3 text-right">Δ PO Demand</th>
                     <th className="py-3 px-3 text-center">Δ FR % pts</th>
