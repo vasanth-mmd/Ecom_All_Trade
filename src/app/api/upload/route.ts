@@ -21,26 +21,28 @@ function saveToDownloadFolders(fileName: string, buffer: Buffer) {
     path.resolve(process.cwd(), "..", "downloads"),
   ];
 
-  const ext = path.extname(fileName) || ".xlsx";
-  const base = path.basename(fileName, ext).replace(/[^a-zA-Z0-9_-]/g, "_");
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  const timestampedName = `${base}_${stamp}${ext}`;
-
   for (const dir of targetDirs) {
     try {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
+      } else {
+        // Remove older uploaded Excel/CSV files so ONLY the latest uploaded file exists
+        const existingFiles = fs.readdirSync(dir);
+        for (const f of existingFiles) {
+          if (f.endsWith(".xlsx") || f.endsWith(".xls") || f.endsWith(".csv")) {
+            try {
+              fs.unlinkSync(path.join(dir, f));
+            } catch {}
+          }
+        }
       }
       fs.writeFileSync(path.join(dir, fileName), buffer);
-      fs.writeFileSync(path.join(dir, timestampedName), buffer);
     } catch (e) {
       console.warn(`[upload] Warning: could not write to ${dir}:`, e);
     }
   }
 
-  return { fileName, timestampedName };
+  return { fileName };
 }
 
 // In-memory staging for multi-chunk uploads
