@@ -279,6 +279,7 @@ export default function MonthComparePage() {
   const [selCities, setSelCities] = useState<string[]>([]);
   const [selCategories, setSelCategories] = useState<string[]>([]);
   const [selStatuses, setSelStatuses] = useState<string[]>([]);
+  const [selSkus, setSelSkus] = useState<string[]>([]);
   const [skuSearch, setSkuSearch] = useState("");
   const [skuFilterType, setSkuFilterType] = useState<"all" | "gainers" | "droppers" | "growth" | "gap">("all");
 
@@ -372,6 +373,7 @@ export default function MonthComparePage() {
   const allCities = useMemo(() => d?.dims?.city || [], [d]);
   const allCategories = useMemo(() => d?.dims?.category || [], [d]);
   const allStatuses = useMemo(() => d?.dims?.status || [], [d]);
+  const allSkus = useMemo(() => d?.dims?.sku || [], [d]);
 
   // Metric index mappings
   const PO_IDX = metric === "val" ? 8 : 7;
@@ -385,6 +387,7 @@ export default function MonthComparePage() {
   const cityOptions = useMemo(() => allCities.map((c) => ({ key: c, label: c })), [allCities]);
   const catOptions = useMemo(() => allCategories.map((c) => ({ key: c, label: c })), [allCategories]);
   const statusOptions = useMemo(() => allStatuses.map((s) => ({ key: s, label: s })), [allStatuses]);
+  const skuOptions = useMemo(() => allSkus.map((s) => ({ key: s, label: s })), [allSkus]);
 
   // Active filter sets
   const tradeSet = useMemo(() => (selTrades.length ? new Set(selTrades) : null), [selTrades]);
@@ -392,6 +395,7 @@ export default function MonthComparePage() {
   const citySet = useMemo(() => (selCities.length ? new Set(selCities) : null), [selCities]);
   const catSet = useMemo(() => (selCategories.length ? new Set(selCategories) : null), [selCategories]);
   const statusSet = useMemo(() => (selStatuses.length ? new Set(selStatuses) : null), [selStatuses]);
+  const skuSet = useMemo(() => (selSkus.length ? new Set(selSkus) : null), [selSkus]);
 
   // Day calculations for Period A & B
   const maxDaysA = useMemo(() => getMaxDaysInMonth(dateFromA || dateToA || "2026-08-01"), [dateFromA, dateToA]);
@@ -457,13 +461,14 @@ export default function MonthComparePage() {
       if (citySet && !citySet.has(cityName)) return false;
       if (catSet && !catSet.has(catName)) return false;
       if (statusSet && !statusSet.has(statusName)) return false;
+      if (skuSet && !skuSet.has(skuName)) return false;
       if (skuSearch.trim()) {
         const q = skuSearch.toLowerCase();
         if (!skuName.toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [d, tradeSet, regionSet, citySet, catSet, statusSet, skuSearch]);
+  }, [d, tradeSet, regionSet, citySet, catSet, statusSet, skuSet, skuSearch]);
 
   // Aggregate stats directly for Period A and Period B
   const { statsA, statsB, countA, countB } = useMemo(() => {
@@ -1573,6 +1578,17 @@ export default function MonthComparePage() {
               onClose={() => setOpenDropdown(null)}
             />
 
+            {/* SKU Filter */}
+            <MultiSelectDropdown
+              label="SKU"
+              options={skuOptions}
+              selected={selSkus}
+              onChange={setSelSkus}
+              open={openDropdown === "sku"}
+              onToggle={() => setOpenDropdown(openDropdown === "sku" ? null : "sku")}
+              onClose={() => setOpenDropdown(null)}
+            />
+
             {/* SKU Search */}
             <div className="relative">
               <input
@@ -1597,7 +1613,7 @@ export default function MonthComparePage() {
           </div>
 
           {/* Reset Filters */}
-          {(selTrades.length > 0 || selRegions.length > 0 || selCities.length > 0 || selCategories.length > 0 || selStatuses.length > 0 || skuSearch) && (
+          {(selTrades.length > 0 || selRegions.length > 0 || selCities.length > 0 || selCategories.length > 0 || selStatuses.length > 0 || selSkus.length > 0 || skuSearch) && (
             <button
               onClick={() => {
                 setSelTrades([]);
@@ -1605,6 +1621,7 @@ export default function MonthComparePage() {
                 setSelCities([]);
                 setSelCategories([]);
                 setSelStatuses([]);
+                setSelSkus([]);
                 setSkuSearch("");
               }}
               className="text-xs text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1 transition px-2 py-1 rounded bg-rose-950/40 border border-rose-800/40"
