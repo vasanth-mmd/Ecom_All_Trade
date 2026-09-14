@@ -47,15 +47,15 @@ export default function HomePage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
               </span>
-              <span>TRADE FILL RATE · 2026 LIVE</span>
+              <span>MULTITRADE FILL RATE REPORT · 2026 LIVE</span>
             </div>
 
             {/* Main Headline with Clean Typesetting */}
             <h1 className="animate-fade-up-delay-1 text-4xl sm:text-6xl font-black tracking-tight text-purple-950 leading-[1.12]">
-              Real-Time Zepto Trade Fill Rate
+              Real-Time MultiTrade Fill Rate
               <br className="hidden sm:inline" />{" "}
               <span className="animate-text-shimmer bg-gradient-to-r from-purple-700 via-fuchsia-600 to-amber-500 bg-[length:200%_auto] bg-clip-text text-transparent drop-shadow-xs">
-                Intelligence
+                Intelligence Report
               </span>
             </h1>
 
@@ -99,7 +99,7 @@ export default function HomePage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="bg-white/90 backdrop-blur-2xl rounded-3xl shadow-xl shadow-purple-950/5 border border-purple-100/80 grid grid-cols-2 sm:grid-cols-4 divide-x divide-purple-100/70">
             {[
-              { label: "Trade", value: "Zepto" },
+              { label: "Scope", value: "MultiTrade Fill Rate" },
               { label: "Drill-down", value: "Trade → Region → City → SKU" },
               { label: "AI engines", value: "Claude, GPT & Gemini, working together" },
               { label: "Always current", value: "Every dashboard updates by using Current Data" },
@@ -225,7 +225,7 @@ export default function HomePage() {
           </div>
         </div>
         <div className="mt-8 text-center text-xs font-bold text-purple-900/60">
-          Trade Fill Rate 2026 · Milky Mist Dairy Food Pvt Ltd · Internal Use
+          MultiTrade Fill Rate Report 2026 · Milky Mist Dairy Food Pvt Ltd · Internal Use
         </div>
       </footer>
     </main>

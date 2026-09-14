@@ -488,7 +488,7 @@ function DispatchModal({ po, onClose, onOpenSkuLightbox }: DispatchModalProps) {
                   {po.priority.label}
                 </span>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold border ${po.portalBadge.badgeCls}`}>
-                  Zepto Portal: {po.portalBadge.icon} {po.portalBadge.label}
+                  {po.trade || "Trade"} Portal: {po.portalBadge.icon} {po.portalBadge.label}
                 </span>
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${po.grnAckStatus.badgeCls}`}>
                   {po.grnAckStatus.icon} {po.grnAckStatus.label}
@@ -1532,7 +1532,7 @@ export default function PriorityPoPage() {
             Which POs Need to be Filled Now?
           </h1>
           <p className="mt-1 text-sm font-medium text-slate-500">
-            Fulfillment schedule showing official <strong className="text-sky-600">Zepto Portal Status (Completed / GRN Done)</strong> & timeline urgency (<strong className="text-rose-600">Today</strong> → <strong className="text-orange-600">Tomorrow</strong> → <strong className="text-amber-600">Day After</strong>).
+            Fulfillment schedule showing official <strong className="text-sky-600">Trade Portal Status (Completed / GRN Done)</strong> & timeline urgency (<strong className="text-rose-600">Today</strong> → <strong className="text-orange-600">Tomorrow</strong> → <strong className="text-amber-600">Day After</strong>).
           </p>
         </div>
 
@@ -1851,7 +1851,7 @@ export default function PriorityPoPage() {
                 Upcoming POs to Fill (Today → Tomorrow → Day After)
               </h3>
               <p className="text-xs font-medium text-slate-500">
-                Shows official Zepto Portal Status & urgency timeline. Completed POs are verified against portal records.
+                Shows official Trade Portal Status & urgency timeline. Completed POs are verified against portal records.
               </p>
             </div>
 
@@ -1999,7 +1999,7 @@ export default function PriorityPoPage() {
                   }`}
                 >
                   <div className="flex items-center justify-center gap-1.5">
-                    <span>Zepto Portal Status</span>
+                    <span>Trade Portal Status</span>
                     <span className="text-[10px] font-black text-purple-700">
                       {activeSortKey === "portalStatus" ? (activeSortDir === "asc" ? "▲" : "▼") : "⇅"}
                     </span>
@@ -2165,7 +2165,7 @@ export default function PriorityPoPage() {
                         </div>
                       </td>
 
-                      {/* Zepto Portal Status (NEW COLUMN) */}
+                      {/* Trade Portal Status (COLUMN) */}
                       <td className="py-3.5 px-4 text-center">
                         <span
                           className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border shadow-2xs ${po.portalBadge.badgeCls}`}
@@ -2415,7 +2415,7 @@ export default function PriorityPoPage() {
                   }`}
                 >
                   <div className="flex items-center justify-center gap-1.5">
-                    <span>Zepto Portal Status</span>
+                    <span>Trade Portal Status</span>
                     <span className="text-[10px] font-black text-rose-700">
                       {expiredSortKey === "portalStatus" ? (expiredSortDir === "asc" ? "▲" : "▼") : "⇅"}
                     </span>
@@ -2579,7 +2579,7 @@ export default function PriorityPoPage() {
                         </div>
                       </td>
 
-                      {/* Zepto Portal Status */}
+                      {/* Trade Portal Status */}
                       <td className="py-3.5 px-4 text-center">
                         <span
                           className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border shadow-2xs ${po.portalBadge.badgeCls}`}

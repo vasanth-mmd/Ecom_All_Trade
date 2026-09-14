@@ -90,7 +90,7 @@ export default function SignupPage() {
               Create Your Account
             </h1>
             <p className="mt-1.5 text-sm font-medium text-slate-600">
-              Get full access to the Zepto Trade Fill Rate dashboard.
+              Get full access to the MultiTrade Fill Rate Report dashboard.
             </p>
           </div>
 

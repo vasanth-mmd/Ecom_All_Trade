@@ -32,8 +32,8 @@ export default function SiteHeader() {
         </div>
         <nav className="hidden md:flex items-center gap-7 text-[15px] font-semibold text-slate-700">
           <NavLink active>Home</NavLink>
-          <NavLink>Zepto Trade FR 2026</NavLink>
-          <NavLink>Zepto - Reports</NavLink>
+          <NavLink>MultiTrade FR 2026</NavLink>
+          <NavLink>MultiTrade - Reports</NavLink>
           <NavLink>Jarvis AI</NavLink>
         </nav>
         <div className="flex-1" />

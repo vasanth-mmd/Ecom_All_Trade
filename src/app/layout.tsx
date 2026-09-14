@@ -3,8 +3,8 @@ import "./globals.css";
 import Providers from "./providers";
 
 export const metadata: Metadata = {
-  title: "Zepto Trade Fill Rate 2026 · Milky Mist",
-  description: "PO fulfilment dashboard across quick-commerce trades(Zepto)",
+  title: "MultiTrade Fill Rate Report 2026 · Milky Mist",
+  description: "PO fulfilment dashboard across quick-commerce trades (MultiTrade)",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

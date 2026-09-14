@@ -34,7 +34,7 @@ const PROMPT_CATEGORIES = [
       "Which city and SKU combination is causing the biggest value loss?",
       "Analyse Zero-Supply PO root causes across all trades",
       "Compare depot fulfillment: HO Depo vs Taloja vs Sunethra",
-      "Why did Zepto fill rate drop and what are the top 5 deficit items?",
+      "Why did MultiTrade fill rate drop and what are the top 5 deficit items?",
       "Show critical POs expiring in the next 48 hours",
     ],
   },
@@ -42,7 +42,7 @@ const PROMPT_CATEGORIES = [
     id: "whatif",
     label: "🧪 What-If Simulation",
     prompts: [
-      "What if Zepto fill rate improves to 92%? How much value is recovered?",
+      "What if MultiTrade fill rate improves to 92%? How much value is recovered?",
       "Simulate 100% supply on Paneer and Curd across all cities",
       "What if we eliminate all Zero Supply POs in Bangalore and Mumbai?",
       "What if Blinkit PO volume grows by 20% next month?",

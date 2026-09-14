@@ -128,7 +128,7 @@ export default function SideNav({ email }: { email: string }) {
             <div className={`text-lg font-extrabold tracking-tight ${brandText}`}>
               Milky Mist
             </div>
-            <div className={`text-[11px] ${subText} mt-0.5`}>Trade Fill Rate 2026</div>
+            <div className={`text-[11px] ${subText} mt-0.5`}>MultiTrade Fill Rate Report 2026</div>
           </div>
           <button
             onClick={() => setOpen(false)}
