@@ -78,8 +78,8 @@ export async function uploadDataFile(
   const CHUNK_SIZE = 1500;
   const totalChunks = Math.ceil(records.length / CHUNK_SIZE);
 
-  // 1. Initialize session & wipe previous database records
-  onProgress?.("Clearing previous dataset from Supabase...", 18);
+  // 1. Initialize session
+  onProgress?.("Initializing upload session...", 18);
   const initRes = await fetch("/api/upload", {
     method: "POST",
     headers: {
@@ -100,7 +100,7 @@ export async function uploadDataFile(
   }
 
   // 2. Upload chunks of the new file
-  onProgress?.(`Uploading ${records.length.toLocaleString()} fresh records to Supabase...`, 20);
+  onProgress?.(`Processing ${records.length.toLocaleString()} records into dataset...`, 20);
 
   for (let i = 0; i < totalChunks; i++) {
     const start = i * CHUNK_SIZE;
@@ -108,7 +108,7 @@ export async function uploadDataFile(
     const chunk = records.slice(start, end);
 
     const percent = Math.round(20 + (i / totalChunks) * 70);
-    onProgress?.(`Uploading batch ${i + 1} of ${totalChunks} (${percent}%)...`, percent);
+    onProgress?.(`Saving batch ${i + 1} of ${totalChunks} (${percent}%)...`, percent);
 
     const r = await fetch("/api/upload", {
       method: "POST",
@@ -132,8 +132,8 @@ export async function uploadDataFile(
     }
   }
 
-  // 3. Finalize new dataset
-  onProgress?.("Finalizing Supabase sync & dashboard update...", 95);
+  // 3. Finalize new dataset into JS and JSON files
+  onProgress?.("Writing data.js & data.json files and updating dashboard...", 95);
 
   const finalRes = await fetch("/api/upload", {
     method: "POST",

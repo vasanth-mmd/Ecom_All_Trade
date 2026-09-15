@@ -77,7 +77,7 @@ export default function UploadButton({ variant = "light" }: { variant?: "dark" |
           <div className="p-3">
             <p className="text-xs text-slate-500 mb-2">
               Upload a .xlsx / .xls / .csv Raw Data file. Requires the admin
-              passcode. This replaces the currently stored dataset and syncs directly to Supabase.
+              passcode. This updates the <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-mono text-[10px]">data.json</code> & <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-mono text-[10px]">data.js</code> files and refreshes the dashboard.
             </p>
             <input
               ref={fileRef}
@@ -105,7 +105,7 @@ export default function UploadButton({ variant = "light" }: { variant?: "dark" |
               disabled={busy || !file}
               className="mt-2 w-full px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 transition"
             >
-              {busy ? (progressMsg || "Uploading…") : "Upload & replace data"}
+              {busy ? (progressMsg || "Uploading…") : "Upload & Save to JS / JSON"}
             </button>
 
             {busy && (

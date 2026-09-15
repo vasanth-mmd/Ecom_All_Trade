@@ -268,8 +268,21 @@ function saveLocalFiles(data: Dataset) {
     fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
     fs.writeFileSync(jsonPath, jsonStr, "utf8");
     fs.writeFileSync(jsPath, "window.TRADE_FR=" + jsonStr + ";", "utf8");
+
+    // Also backup to download folders so user can download data.json and data.js
+    const downloadDirs = [
+      path.join(process.cwd(), "download"),
+      path.join(process.cwd(), "downloads"),
+    ];
+    for (const dir of downloadDirs) {
+      try {
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, "data.json"), jsonStr, "utf8");
+        fs.writeFileSync(path.join(dir, "data.js"), "window.TRADE_FR=" + jsonStr + ";", "utf8");
+      } catch {}
+    }
   } catch (e) {
-    console.warn("[dataset] Warning: could not write local backup files:", e);
+    console.warn("[dataset] Warning: could not write local JS/JSON files:", e);
   }
 }
 
@@ -289,7 +302,6 @@ async function loadFromSupabase(): Promise<Dataset | null> {
     const { _source, ...data } = parsed;
     return data as Dataset;
   } catch (e) {
-    console.warn("[dataset] Notice: reading Supabase storage:", e);
     return null;
   }
 }
@@ -301,7 +313,7 @@ async function loadStored(): Promise<{ data: Dataset; stamp: string } | null> {
 
   try {
     const dbPromise = prisma.dataset.findUnique({ where: { id: 1 } });
-    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
     const rec = await Promise.race([dbPromise, timeoutPromise]);
     if (!rec) return null;
     const stamp = rec.updatedAt.toISOString();
@@ -324,36 +336,44 @@ export async function getDataset(): Promise<Dataset> {
     return cache.data;
   }
 
-  // 2. Load from Supabase Storage (Persistent across all serverless instances)
-  const sbData = await loadFromSupabase();
-  if (sbData && sbData.rows && sbData.rows.length > 0) {
-    const stamp = "supabase:" + Date.now();
-    cache = { stamp, data: sbData };
-    saveLocalFiles(sbData);
-    return sbData;
-  }
-
-  // 3. Fall back to Prisma database if available
-  const stored = await loadStored();
-  if (stored && stored.data && stored.data.rows && stored.data.rows.length > 0) {
-    return stored.data;
-  }
-
-  // 4. Fall back to local file
+  // 2. Check local JSON file (Fastest, zero-database dependency)
   try {
     const file = path.join(process.cwd(), "public", "app", "data.json");
     if (fs.existsSync(file)) {
       const stamp = "file:" + fs.statSync(file).mtimeMs;
-      if (cache && cache.stamp === stamp) return cache.data;
-      const data = JSON.parse(fs.readFileSync(file, "utf8")) as Dataset;
-      cache = { stamp, data };
-      return data;
+      const rawText = fs.readFileSync(file, "utf8");
+      if (rawText && rawText.length > 10) {
+        const data = JSON.parse(rawText) as Dataset;
+        if (data && data.rows && data.rows.length > 0) {
+          cache = { stamp, data };
+          return data;
+        }
+      }
     }
   } catch (e) {
-    console.error("[dataset] Failed to read public/app/data.json fallback:", e);
+    console.warn("[dataset] Notice reading local data.json:", e);
   }
 
-  throw new Error("No dataset available");
+  // 3. Fall back to Supabase Storage if available
+  try {
+    const sbData = await loadFromSupabase();
+    if (sbData && sbData.rows && sbData.rows.length > 0) {
+      const stamp = "supabase:" + Date.now();
+      cache = { stamp, data: sbData };
+      saveLocalFiles(sbData);
+      return sbData;
+    }
+  } catch {}
+
+  // 4. Fall back to Prisma database if available
+  try {
+    const stored = await loadStored();
+    if (stored && stored.data && stored.data.rows && stored.data.rows.length > 0) {
+      return stored.data;
+    }
+  } catch {}
+
+  throw new Error("No dataset available. Please upload an Excel/CSV file to generate data.json and data.js.");
 }
 
 export async function saveDataset(data: Dataset, source: "upload" = "upload") {
@@ -364,29 +384,34 @@ export async function saveDataset(data: Dataset, source: "upload" = "upload") {
   // 1. Update memory cache immediately
   cache = { stamp, data };
 
-  // 2. Update local files
+  // 2. Update local JS and JSON files immediately
   saveLocalFiles(data);
 
-  // 3. Save to Supabase Storage (Persistent storage)
+  // 3. Optional background sync to Supabase Storage (non-blocking)
   try {
     const supabase = getServiceSupabase();
-    await supabase.storage
+    supabase.storage
       .from("datasets")
       .upload("active_dataset.json", Buffer.from(json, "utf8"), {
         contentType: "application/json",
         upsert: true,
-      });
+      })
+      .then(() => {})
+      .catch((e) => console.warn("[dataset] Optional Supabase storage notice:", e.message));
   } catch (e) {
-    console.warn("[dataset] Error uploading to Supabase storage:", e);
+    // ignore
   }
 
-  // 4. Upsert to Prisma database
+  // 4. Optional background upsert to Prisma database (non-blocking)
   try {
-    await prisma.dataset.upsert({
-      where: { id: 1 },
-      update: { json },
-      create: { id: 1, json },
-    });
+    prisma.dataset
+      .upsert({
+        where: { id: 1 },
+        update: { json },
+        create: { id: 1, json },
+      })
+      .then(() => {})
+      .catch((e) => console.warn("[dataset] Optional Prisma notice:", e.message));
   } catch (e) {
     // ignore
   }

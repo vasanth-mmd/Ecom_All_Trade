@@ -89,6 +89,10 @@ function sendFile(safeName: string, fileBuffer: Buffer) {
     contentType = "application/vnd.ms-excel";
   } else if (ext === ".csv") {
     contentType = "text/csv; charset=utf-8";
+  } else if (ext === ".json") {
+    contentType = "application/json; charset=utf-8";
+  } else if (ext === ".js") {
+    contentType = "text/javascript; charset=utf-8";
   }
 
   return new NextResponse(new Uint8Array(fileBuffer), {

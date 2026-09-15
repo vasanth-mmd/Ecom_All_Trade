@@ -77,7 +77,7 @@ function FileUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
     <>
       <p className="mt-5 text-sm text-slate-500">
         Upload a Trade FR Raw Data file (.xlsx, .xls or .csv) directly from
-        your computer. Records will be safely uploaded in chunks to <b>Supabase</b> and update the live dashboard dataset.
+        your computer. Records will be processed and saved directly into <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-mono text-xs font-semibold">data.json</code> and <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-mono text-xs font-semibold">data.js</code> files to immediately update the live dashboard with zero database dependency.
       </p>
 
       <div className="mt-6 border-2 border-dashed rounded-2xl p-6 sm:p-10 text-center bg-white border-indigo-300 shadow-sm">
@@ -119,7 +119,7 @@ function FileUploadPanel({ onUploadSuccess }: { onUploadSuccess: () => void }) {
           disabled={busy || !file}
           className="mt-4 px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 transition"
         >
-          {busy ? (progressMsg || "Uploading & Processing…") : "Upload & Sync to Supabase"}
+          {busy ? (progressMsg || "Uploading & Processing…") : "Upload & Save to JS / JSON"}
         </button>
 
         {busy && (
@@ -174,10 +174,74 @@ function StoredFilesPanel({ refreshKey }: { refreshKey: number }) {
 
   return (
     <div className="mt-10 pt-8 border-t border-slate-200">
+      {/* Direct JS and JSON Download Cards */}
+      <div className="mb-8">
+        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <span>⚡</span> Active JS & JSON Data Files
+        </h2>
+        <p className="text-xs text-slate-500 mt-0.5">
+          The dashboard directly runs on these compiled file snapshots. You can download or view them anytime:
+        </p>
+
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/60 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📦</span>
+              <div>
+                <div className="text-sm font-bold text-purple-950 font-mono">data.json</div>
+                <div className="text-xs text-purple-700">Raw JSON dataset format</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href="/api/data"
+                target="_blank"
+                className="px-2.5 py-1.5 rounded-lg bg-white border border-purple-200 text-purple-700 hover:bg-purple-100 text-xs font-semibold"
+              >
+                View
+              </a>
+              <a
+                href="/api/data"
+                download="data.json"
+                className="px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 text-xs font-semibold inline-flex items-center gap-1"
+              >
+                <span>⬇️</span> Download
+              </a>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-xl border border-indigo-200 bg-indigo-50/60 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⚡</span>
+              <div>
+                <div className="text-sm font-bold text-indigo-950 font-mono">data.js</div>
+                <div className="text-xs text-indigo-700">Client-side JS variable (window.TRADE_FR)</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href="/api/datajs"
+                target="_blank"
+                className="px-2.5 py-1.5 rounded-lg bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold"
+              >
+                View
+              </a>
+              <a
+                href="/api/datajs"
+                download="data.js"
+                className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold inline-flex items-center gap-1"
+              >
+                <span>⬇️</span> Download
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <span>📁</span> Stored in Download Folder
+            <span>📁</span> Stored Files in Download Folder
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Files stored on server in the <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600 font-mono">download</code> directory

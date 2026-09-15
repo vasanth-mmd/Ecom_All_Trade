@@ -83,8 +83,12 @@ export async function POST(req: Request) {
         const { sessionId, fileName, totalChunks } = body;
         if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
 
-        // Wipe previous database records
-        await clearSupabaseTradeOrders();
+        // Optional wipe of previous database records
+        try {
+          await clearSupabaseTradeOrders();
+        } catch (e) {
+          console.warn("[upload-init] Optional Supabase clear notice:", e);
+        }
 
         chunkSessions.set(sessionId, {
           records: [],
@@ -93,18 +97,19 @@ export async function POST(req: Request) {
           createdAt: Date.now(),
         });
 
-        return NextResponse.json({ ok: true, message: "Initialized session and cleared previous dataset." });
+        return NextResponse.json({ ok: true, message: "Initialized upload session." });
       }
 
-      // Action: Chunk (receives records batch and inserts into Supabase)
+      // Action: Chunk (receives records batch and stores in memory session)
       if (body.action === "chunk") {
         const { sessionId, chunkIndex, totalChunks, records, fileName } = body;
         if (!sessionId) return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
 
         if (!chunkSessions.has(sessionId)) {
-          // If init wasn't explicitly called, clear old records on first chunk
           if (chunkIndex === 0) {
-            await clearSupabaseTradeOrders();
+            try {
+              await clearSupabaseTradeOrders();
+            } catch {}
           }
           chunkSessions.set(sessionId, {
             records: [],
@@ -119,12 +124,10 @@ export async function POST(req: Request) {
           for (let i = 0; i < records.length; i++) {
             sess.records.push(records[i]);
           }
-          // Sync this batch into Supabase trade_orders
-          try {
-            await syncRecordsToSupabase(records);
-          } catch (err) {
-            console.warn("[upload-chunk] Supabase sync notice:", err);
-          }
+          // Optional non-blocking sync to Supabase trade_orders if available
+          syncRecordsToSupabase(records).catch((err) => {
+            console.warn("[upload-chunk] Optional Supabase sync notice:", err.message);
+          });
         }
 
         return NextResponse.json({
@@ -135,7 +138,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // Action: Finalize (compiles new dataset and replaces active snapshot in Supabase storage)
+      // Action: Finalize (compiles new dataset and writes data.json and data.js)
       if (body.action === "finalize") {
         const { sessionId } = body;
         const sess = chunkSessions.get(sessionId);
@@ -147,7 +150,7 @@ export async function POST(req: Request) {
         const savedFileName = sess.fileName;
         chunkSessions.delete(sessionId);
 
-        // Build compact matrix dataset from only the new file & replace active dataset
+        // Build compact matrix dataset & save to public/app/data.json and public/app/data.js
         const data = buildFromRecords(allRecs);
         await saveDataset(data, "upload");
 
@@ -167,24 +170,24 @@ export async function POST(req: Request) {
           meta: data.meta,
           storedFile: savedFileName,
           message:
-            `Successfully stored ${data.meta.rows.toLocaleString("en-IN")} fresh records in Supabase and updated dashboard.`,
+            `Successfully stored ${data.meta.rows.toLocaleString("en-IN")} records into data.json & data.js files and updated dashboard.`,
         });
       }
 
       // Pre-processed dataset direct push
       if (body.dataset && body.records) {
-        await clearSupabaseTradeOrders();
+        try {
+          await clearSupabaseTradeOrders();
+        } catch {}
         const data: Dataset = body.dataset;
         await saveDataset(data, "upload");
         try {
-          await syncRecordsToSupabase(body.records);
-        } catch (e) {
-          console.warn("[upload] Supabase sync notice:", e);
-        }
+          syncRecordsToSupabase(body.records).catch(() => {});
+        } catch (e) {}
         return NextResponse.json({
           ok: true,
           meta: data.meta,
-          message: `Replaced dataset with ${data.meta.rows.toLocaleString("en-IN")} new rows in Supabase.`,
+          message: `Saved ${data.meta.rows.toLocaleString("en-IN")} rows directly into data.json & data.js.`,
         });
       }
     }
@@ -235,14 +238,16 @@ export async function POST(req: Request) {
         { status: 400 }
       );
 
-    // Clear old data from Supabase before saving new file
-    await clearSupabaseTradeOrders();
+    // Optional clear old data from Supabase
+    try {
+      await clearSupabaseTradeOrders();
+    } catch {}
 
     const data = buildFromRecords(recs);
     await saveDataset(data, "upload");
 
     try {
-      await syncRecordsToSupabase(recs);
+      syncRecordsToSupabase(recs).catch(() => {});
     } catch (dbErr) {
       console.warn("[upload] Supabase sync notice:", dbErr);
     }
@@ -252,7 +257,7 @@ export async function POST(req: Request) {
       meta: data.meta,
       storedFile: savedFileName,
       message:
-        `Replaced database with ${data.meta.rows.toLocaleString("en-IN")} fresh PO lines from ${savedFileName}.`,
+        `Saved ${data.meta.rows.toLocaleString("en-IN")} PO lines directly into data.json & data.js files.`,
     });
   } catch (e: any) {
     return NextResponse.json({ error: "Could not process the file: " + e.message }, { status: 500 });
