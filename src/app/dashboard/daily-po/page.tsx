@@ -554,7 +554,6 @@ export default function DailyPoTrackerPage() {
   const [activeTab, setActiveTab] = useState<"daily-po" | "location-monitor">("daily-po");
   const [locationViewMode, setLocationViewMode] = useState<"by-po" | "by-city-summary">("by-po");
   const [timelinePanelTab, setTimelinePanelTab] = useState<"pos" | "skus">("pos");
-  const [timelineViewMode, setTimelineViewMode] = useState<"table" | "cards">("table");
   const [timelineSortKey, setTimelineSortKey] = useState<"date" | "poCount" | "poVal" | "grnVal" | "gapVal" | "frVal">("date");
   const [timelineSortDir, setTimelineSortDir] = useState<"asc" | "desc">("desc");
 
@@ -2024,7 +2023,7 @@ export default function DailyPoTrackerPage() {
         </div>
       </div>
 
-      {/* ── Daily Fulfilment Trend Timeline (Table View as primary, with Card toggle) ── */}
+      {/* ── Daily Fulfilment Trend Timeline ── */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
         {/* Header Toolbar */}
         <div className="flex items-center justify-between flex-wrap gap-3 pb-2 border-b border-slate-100">
@@ -2040,56 +2039,27 @@ export default function DailyPoTrackerPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* View Mode Switcher */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setTimelineViewMode("table")}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  timelineViewMode === "table"
-                    ? "bg-white text-purple-900 font-extrabold shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <span>📊</span>
-                <span>Table View</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTimelineViewMode("cards")}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  timelineViewMode === "cards"
-                    ? "bg-white text-purple-900 font-extrabold shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <span>🪟</span>
-                <span>Cards View</span>
-              </button>
-            </div>
-
-            {focusedTimelineDate && (
-              <button
-                onClick={() => setFocusedTimelineDate(null)}
-                className="text-xs font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 px-3 py-1.5 rounded-xl transition cursor-pointer"
-              >
-                Clear Day Focus ✕
-              </button>
-            )}
-          </div>
+          {focusedTimelineDate && (
+            <button
+              onClick={() => setFocusedTimelineDate(null)}
+              className="text-xs font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 px-3.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1"
+            >
+              <span>✕</span>
+              <span>Clear Day Focus ({focusedTimelineDate})</span>
+            </button>
+          )}
         </div>
 
         {dailySummary.length === 0 ? (
           <div className="py-8 text-center text-slate-400 font-medium text-sm">
             No PO activity recorded for the selected date range and filter criteria.
           </div>
-        ) : timelineViewMode === "table" ? (
-          /* ── TABLE VIEW (Primary Format) ── */
+        ) : (
+          /* ── FULL TABLE VIEW (No inner scrollbar / full range displayed) ── */
           <div className="space-y-4">
-            <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs max-h-[420px] overflow-y-auto">
+            <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs">
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100/95 text-slate-700 uppercase font-black tracking-wider sticky top-0 z-10 border-b border-slate-200 backdrop-blur-xs">
+                <thead className="bg-slate-100/95 text-slate-700 uppercase font-black tracking-wider border-b border-slate-200">
                   <tr>
                     <th
                       onClick={() => toggleTimelineSort("date")}
@@ -2399,7 +2369,7 @@ export default function DailyPoTrackerPage() {
                 {/* Panel Content for Focused Date */}
                 {timelinePanelTab === "pos" ? (
                   /* PO View Table */
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[340px] overflow-y-auto">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-100/90 text-slate-700 uppercase font-extrabold tracking-wider sticky top-0 z-10 border-b border-slate-200">
                         <tr>
@@ -2519,7 +2489,7 @@ export default function DailyPoTrackerPage() {
                   </div>
                 ) : (
                   /* SKU View Table */
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[340px] overflow-y-auto">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-100/90 text-slate-700 uppercase font-extrabold tracking-wider sticky top-0 z-10 border-b border-slate-200">
                         <tr>
@@ -2606,370 +2576,6 @@ export default function DailyPoTrackerPage() {
               </div>
             )}
           </div>
-        ) : (
-          /* ── CARDS VIEW (Optional alternative) ── */
-          focusedTimelineDate ? (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-              <div className="lg:col-span-4 xl:col-span-3">
-                {dailySummary
-                  .filter((day) => ymdToDate(day.date) === focusedTimelineDate)
-                  .map((day) => {
-                    const dateStr = ymdToDate(day.date);
-                    const isCritical = day.frVal < 75;
-
-                    return (
-                      <div
-                        key={day.date}
-                        className="p-4 rounded-2xl border border-purple-600 bg-purple-100/70 ring-2 ring-purple-500 shadow-md select-none flex flex-col justify-between"
-                      >
-                        <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1">
-                          <span className="text-purple-950 font-black text-sm">{dateStr}</span>
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] ${getFillRatePill(day.frVal)}`}>
-                            {day.frVal.toFixed(0)}% FR
-                          </span>
-                        </div>
-                        <div className="text-xs font-bold text-slate-600 mb-2">{day.poCount} POs raised</div>
-                        <div className="flex items-baseline justify-between text-xs mb-2">
-                          <span className="font-black text-slate-900 text-sm">₹{L2(day.poVal)}L</span>
-                          <span className={`font-bold ${isCritical ? "text-rose-600" : "text-slate-500"}`}>
-                            Gap: ₹{L2(day.gapVal)}L
-                          </span>
-                        </div>
-                        <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden mb-3">
-                          <div
-                            className={`h-full rounded-full ${
-                              day.frVal >= 90 ? "bg-emerald-500" : day.frVal >= 75 ? "bg-amber-500" : "bg-purple-600"
-                            }`}
-                            style={{ width: `${Math.min(100, day.frVal)}%` }}
-                          />
-                        </div>
-                        <div className="pt-2.5 border-t border-purple-200 flex items-center justify-between text-[11px] text-purple-900 font-bold">
-                          <span>Filled GRN: ₹{L2(day.grnVal)}L</span>
-                          <button
-                            onClick={() => setFocusedTimelineDate(null)}
-                            className="hover:text-purple-600 underline cursor-pointer text-[10px]"
-                          >
-                            Clear Focus ✕
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              <div className="lg:col-span-8 xl:col-span-9 bg-slate-50/80 rounded-2xl border border-purple-200 p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-slate-200">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-sm text-slate-900">
-                        📅 Date Focus: {focusedTimelineDate}
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-purple-600 text-white text-xs font-extrabold">
-                        {activeFocusedPoList.length} POs
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200">
-                        {activeFocusedPoList.filter((p) => p.grnVal > 0 || p.grnQty > 0).length} GRNs Received
-                      </span>
-                    </div>
-                    <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                      PO-wise details, GRN fulfillment & SKU gap breakdown for {focusedTimelineDate}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-2xs">
-                    <button
-                      onClick={() => setTimelinePanelTab("pos")}
-                      className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                        timelinePanelTab === "pos"
-                          ? "bg-purple-700 text-white font-extrabold shadow-xs"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      📋 PO View ({activeFocusedPoList.length})
-                    </button>
-                    <button
-                      onClick={() => setTimelinePanelTab("skus")}
-                      className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                        timelinePanelTab === "skus"
-                          ? "bg-purple-700 text-white font-extrabold shadow-xs"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      🥛 SKU View ({activeFocusedSkuList.length})
-                    </button>
-                  </div>
-                </div>
-
-                {timelinePanelTab === "pos" ? (
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[340px] overflow-y-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100/90 text-slate-700 uppercase font-extrabold tracking-wider sticky top-0 z-10 border-b border-slate-200">
-                        <tr>
-                          <th className="p-2.5">PO Number</th>
-                          <th className="p-2.5">Location / City</th>
-                          <th className="p-2.5 text-center">PO Qty</th>
-                          <th className="p-2.5 text-center">GRN Qty</th>
-                          <th className="p-2.5 text-center">Gap Qty</th>
-                          <th className="p-2.5 text-right">PO Val (₹L)</th>
-                          <th className="p-2.5 text-right">GRN Val (₹L)</th>
-                          <th className="p-2.5 text-right">Gap Val (₹L)</th>
-                          <th className="p-2.5 text-center">FR %</th>
-                          <th className="p-2.5">Gap SKUs</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium">
-                        {activeFocusedPoList.map((po) => (
-                          <tr key={po.poNumber} className="hover:bg-purple-50/40 transition-colors">
-                            <td className="p-2.5 font-black text-purple-900">{po.poNumber}</td>
-                            <td className="p-2.5 font-bold text-slate-800">
-                              {po.city} <span className="text-[10px] font-semibold text-slate-400">({po.depo})</span>
-                            </td>
-                            <td className="p-2.5 text-center font-semibold text-slate-700">{L(po.poQty, 0)}</td>
-                            <td className="p-2.5 text-center font-bold text-emerald-700">{L(po.grnQty, 0)}</td>
-                            <td className="p-2.5 text-center font-bold text-rose-600">{L(po.gapQty, 0)}</td>
-                            <td className="p-2.5 text-right font-extrabold text-slate-900">₹{L2(po.poVal)}L</td>
-                            <td className="p-2.5 text-right font-extrabold text-emerald-700">₹{L2(po.grnVal)}L</td>
-                            <td className="p-2.5 text-right font-extrabold text-rose-600">₹{L2(po.gapVal)}L</td>
-                            <td className="p-2.5 text-center">
-                              <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${getFillRatePill(po.frVal)}`}>
-                                {po.frVal.toFixed(0)}%
-                              </span>
-                            </td>
-                            <td className="p-2.5 text-slate-600 max-w-[260px]">
-                              {po.gapSkus.length === 0 ? (
-                                <span className="text-emerald-600 font-bold text-[11px]">✓ Fully Supplied</span>
-                              ) : (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {po.gapSkus.slice(0, 3).map((s) => {
-                                    const imgPath = matchSkuIcon(s.skuName);
-                                    return (
-                                      <span
-                                        key={s.skuName}
-                                        onClick={() =>
-                                          setSkuPopup({
-                                            icon: imgPath,
-                                            name: s.skuName,
-                                            stats: [
-                                              { label: "Category", value: s.category || "General" },
-                                              { label: "PO Qty", value: L(s.poQty, 0) },
-                                              { label: "Filled Qty", value: L(s.grnQty, 0) },
-                                              {
-                                                label: "Remaining Gap",
-                                                value: `${L(s.gapQty, 0)} (₹${L2(s.gapVal)}L)`,
-                                                cls: "text-rose-600 font-bold",
-                                              },
-                                              { label: "Fill Rate", value: `${s.frVal.toFixed(1)}%` },
-                                            ],
-                                          })
-                                        }
-                                        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-rose-50 border border-rose-200/90 hover:bg-rose-100 hover:border-rose-300 text-rose-800 text-[10px] font-semibold cursor-pointer transition-all active:scale-95 shadow-2xs"
-                                        title={`Click to view product image & details for ${s.skuName}`}
-                                      >
-                                        {imgPath ? (
-                                          <img
-                                            src={imgPath}
-                                            alt=""
-                                            className="w-4 h-4 object-contain rounded bg-white shrink-0 border border-slate-200 p-0.5"
-                                          />
-                                        ) : (
-                                          <span className="text-[10px]">📦</span>
-                                        )}
-                                        <span className="truncate max-w-[130px]">{s.skuName}</span>
-                                        <span className="font-extrabold text-rose-700 text-[9px] bg-rose-100/90 px-1 py-0.2 rounded">
-                                          ({s.gapQty})
-                                        </span>
-                                      </span>
-                                    );
-                                  })}
-                                  {po.gapSkus.length > 3 && (
-                                    <button
-                                      onClick={() =>
-                                        setUnfulfilledPopup({
-                                          title: `PO #${po.poNumber} — Unfulfilled Gap SKUs`,
-                                          subtitle: `${po.city} (${po.depo})`,
-                                          date: focusedTimelineDate,
-                                          poVal: po.poVal,
-                                          grnVal: po.grnVal,
-                                          gapVal: po.gapVal,
-                                          frVal: po.frVal,
-                                          skus: po.gapSkus.map((s) => ({
-                                            name: s.skuName,
-                                            category: s.category,
-                                            poQty: s.poQty,
-                                            grnQty: s.grnQty,
-                                            gapQty: s.gapQty,
-                                            poVal: s.poVal,
-                                            grnVal: s.grnVal,
-                                            gapVal: s.gapVal,
-                                            frVal: s.frVal,
-                                            icon: matchSkuIcon(s.skuName),
-                                          })),
-                                        })
-                                      }
-                                      className="text-[10px] font-extrabold text-rose-700 hover:text-rose-900 hover:bg-rose-100/80 px-2 py-1 rounded-lg border border-rose-300/80 bg-rose-50 self-center cursor-pointer transition-all active:scale-95 shadow-2xs"
-                                    >
-                                      +{po.gapSkus.length - 3} more
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[340px] overflow-y-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100/90 text-slate-700 uppercase font-extrabold tracking-wider sticky top-0 z-10 border-b border-slate-200">
-                        <tr>
-                          <th className="p-2.5">SKU Name</th>
-                          <th className="p-2.5">Category</th>
-                          <th className="p-2.5 text-center">POs Count</th>
-                          <th className="p-2.5 text-right">PO Qty</th>
-                          <th className="p-2.5 text-right">GRN Qty</th>
-                          <th className="p-2.5 text-right">Gap Qty</th>
-                          <th className="p-2.5 text-right">PO Value (₹L)</th>
-                          <th className="p-2.5 text-right">GRN Value (₹L)</th>
-                          <th className="p-2.5 text-right">Gap Value (₹L)</th>
-                          <th className="p-2.5 text-center">FR %</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-medium">
-                        {activeFocusedSkuList.map((sku) => {
-                          const imgPath = matchSkuIcon(sku.skuName);
-                          return (
-                            <tr
-                              key={sku.skuName}
-                              onClick={() =>
-                                setSkuPopup({
-                                  icon: imgPath,
-                                  name: sku.skuName,
-                                  stats: [
-                                    { label: "Category", value: sku.category || "General" },
-                                    { label: "POs Count", value: `${sku.numPos} POs` },
-                                    { label: "PO Qty", value: L(sku.poQty, 0) },
-                                    { label: "Filled Qty", value: L(sku.grnQty, 0) },
-                                    {
-                                      label: "Remaining Gap",
-                                      value: `${L(sku.gapQty, 0)} (₹${L2(sku.gapVal)}L)`,
-                                      cls: "text-rose-600 font-bold",
-                                    },
-                                    { label: "Fill Rate", value: `${sku.frVal.toFixed(1)}%` },
-                                  ],
-                                })
-                              }
-                              className="hover:bg-purple-50/60 transition-colors cursor-pointer"
-                            >
-                              <td className="p-2.5 font-bold text-slate-900">
-                                <div className="flex items-center gap-2">
-                                  {imgPath ? (
-                                    <img
-                                      src={imgPath}
-                                      alt=""
-                                      className="w-7 h-7 object-contain rounded-md bg-white p-0.5 border border-slate-200 shadow-2xs shrink-0"
-                                    />
-                                  ) : (
-                                    <div className="w-7 h-7 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-xs shrink-0">
-                                      📦
-                                    </div>
-                                  )}
-                                  <span className="truncate max-w-[220px]" title={sku.skuName}>
-                                    {sku.skuName}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="p-2.5 text-slate-500 font-medium">{sku.category}</td>
-                              <td className="p-2.5 text-center font-bold text-purple-900">
-                                <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-800 text-[10px]">
-                                  {sku.numPos} POs
-                                </span>
-                              </td>
-                              <td className="p-2.5 text-right font-semibold text-slate-700">{L(sku.poQty, 0)}</td>
-                              <td className="p-2.5 text-right font-semibold text-emerald-700">{L(sku.grnQty, 0)}</td>
-                              <td className="p-2.5 text-right font-bold text-rose-600">{L(sku.gapQty, 0)}</td>
-                              <td className="p-2.5 text-right font-extrabold text-slate-900">₹{L2(sku.poVal)}L</td>
-                              <td className="p-2.5 text-right font-extrabold text-emerald-700">₹{L2(sku.grnVal)}L</td>
-                              <td className="p-2.5 text-right font-extrabold text-rose-600">₹{L2(sku.gapVal)}L</td>
-                              <td className="p-2.5 text-center">
-                                <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${getFillRatePill(sku.frVal)}`}>
-                                  {sku.frVal.toFixed(0)}%
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* ALL DAYS GRID OF CARDS */
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3 max-h-[380px] overflow-y-auto pr-1">
-              {dailySummary.map((day) => {
-                const dateStr = ymdToDate(day.date);
-                const isSelected = focusedTimelineDate === dateStr;
-                const isCritical = day.frVal < 75;
-
-                return (
-                  <div
-                    key={day.date}
-                    onClick={() => {
-                      if (focusedTimelineDate === dateStr) {
-                        setFocusedTimelineDate(null);
-                      } else {
-                        setFocusedTimelineDate(dateStr);
-                      }
-                    }}
-                    className={`group cursor-pointer p-3.5 rounded-2xl border transition-all shadow-xs hover:shadow-md select-none ${
-                      isSelected
-                        ? "border-purple-600 bg-purple-100/60 ring-2 ring-purple-500 shadow-md scale-[1.02]"
-                        : "border-slate-200 hover:border-purple-400 bg-slate-50/50 hover:bg-purple-50/30"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1">
-                      <span className={isSelected ? "text-purple-950 font-black" : ""}>
-                        {dateStr.slice(5)}
-                      </span>
-                      <span
-                        className={`px-1.5 py-0.5 rounded-md text-[10px] ${getFillRatePill(
-                          day.frVal
-                        )}`}
-                      >
-                        {day.frVal.toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-slate-500">{day.poCount} POs raised</div>
-                    <div className="mt-2 flex items-baseline justify-between">
-                      <span className="text-xs font-extrabold text-slate-900">₹{L2(day.poVal)}L</span>
-                      <span
-                        className={`text-[11px] font-bold ${
-                          isCritical ? "text-rose-600" : "text-slate-500"
-                        }`}
-                      >
-                        Gap: ₹{L2(day.gapVal)}L
-                      </span>
-                    </div>
-                    <div className="mt-1.5 h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${
-                          day.frVal >= 90
-                            ? "bg-emerald-500"
-                            : day.frVal >= 75
-                            ? "bg-amber-500"
-                            : "bg-purple-600"
-                        }`}
-                        style={{ width: `${Math.min(100, day.frVal)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )
         )}
       </div>
 
