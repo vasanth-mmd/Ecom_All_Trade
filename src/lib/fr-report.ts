@@ -24,6 +24,7 @@ const TABLES = [
   { key: "depo", rowIdx: 3, title: "Depo-wise Fill Rate (Zepto)", nameCol: "City" },
 ] as const;
 
+
 // Today's IST calendar date, expressed as a UTC midnight timestamp so later
 // day-arithmetic (+/- N * 86400000) can't be shifted by DST or local TZ quirks.
 function todayUTCms(): number {
@@ -33,7 +34,7 @@ function todayUTCms(): number {
   const get = (t: string) => +parts.find((p) => p.type === t)!.value;
   return Date.UTC(get("year"), get("month") - 1, get("day"));
 }
-const msToYmd = (ms: number) => { 
+const msToYmd = (ms: number) => {
   const d = new Date(ms);
   return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
 };

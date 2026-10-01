@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from "react";
+import Link from "next/link";
 import UploadButton from "../upload-button";
 import SyncStatus from "../sync-status";
 import { mmdGroup } from "@/lib/mmd-mapping";
@@ -28,74 +29,48 @@ const L2 = (n: number) =>
 const frPill = (fr: number) =>
   "px-2.5 py-0.5 rounded-full text-xs font-bold " +
   (fr >= 90
-    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700"
+    ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
     : fr >= 75
-    ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
-    : "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-700");
+      ? "bg-amber-50 text-amber-800 border border-amber-300"
+      : "bg-rose-50 text-rose-800 border border-rose-300");
 
 const frColor = (fr: number) =>
-  fr >= 90 ? "text-emerald-500" : fr >= 75 ? "text-amber-500" : "text-rose-500";
+  fr >= 90 ? "text-emerald-600 font-bold" : fr >= 75 ? "text-amber-600 font-bold" : "text-rose-600 font-bold";
 
-// Helper to convert YYYYMMDD number to "YYYY-MM-DD" string
-const ymdToDateStr = (ymd: number): string => {
-  if (!ymd || ymd < 10000000) return "";
+const DATE_PRESETS = [
+  { label: "7D", days: 7 },
+  { label: "14D", days: 14 },
+  { label: "30D", days: 30 },
+  { label: "MTD", days: 0 },
+  { label: "All", days: -1 },
+];
+
+const dateToYmd = (s: string) => (s ? +s.replaceAll("-", "") : 0);
+
+const ymdToStr = (ymd: number) => {
+  if (!ymd || ymd < 19000101) return "";
   const y = Math.floor(ymd / 10000);
-  const m = Math.floor((ymd % 10000) / 100);
-  const d = ymd % 100;
-  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const m = String(Math.floor((ymd % 10000) / 100)).padStart(2, "0");
+  const day = String(ymd % 100).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 };
 
-// Helper to convert "YYYY-MM-DD" to YYYYMMDD number
-const dateStrToYmd = (s: string): number => {
-  if (!s) return 0;
-  return +s.replaceAll("-", "") || 0;
-};
-
-// Extract day number (1..31) from date string YYYY-MM-DD
-const getDayFromDateStr = (dateStr: string): number => {
-  if (!dateStr || dateStr.length < 10) return 1;
-  const day = parseInt(dateStr.slice(8, 10), 10);
-  return isNaN(day) ? 1 : day;
-};
-
-// Get max days in month for a given date or month
-const getMaxDaysInMonth = (dateStr: string): number => {
-  if (!dateStr || dateStr.length < 7) return 31;
-  const y = parseInt(dateStr.slice(0, 4), 10);
-  const m = parseInt(dateStr.slice(5, 7), 10);
-  if (isNaN(y) || isNaN(m)) return 31;
-  return new Date(y, m, 0).getDate();
-};
-
-// Format YYYY-MM-DD into "DD MMM YYYY"
-const formatDateDisplay = (dateStr: string): string => {
-  if (!dateStr) return "";
-  try {
-    const parts = dateStr.split("-");
-    if (parts.length === 3) {
-      const year = parts[0];
-      const monthIdx = parseInt(parts[1], 10) - 1;
-      const day = parts[2];
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      return `${day} ${monthNames[monthIdx] || parts[1]} ${year}`;
-    }
-  } catch {}
-  return dateStr;
-};
-
-// Format YYYY-MM-DD into "DD MMM"
-const formatDateShort = (dateStr: string): string => {
-  if (!dateStr) return "";
-  try {
-    const parts = dateStr.split("-");
-    if (parts.length === 3) {
-      const monthIdx = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
-      const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      return `${day} ${monthNames[monthIdx] || parts[1]}`;
-    }
-  } catch {}
-  return dateStr;
+const formatRangeLabel = (fromStr: string, toStr: string, monthName: string) => {
+  if (!fromStr && !toStr) return "Full Month";
+  if (fromStr && toStr) {
+    const fromDay = parseInt(fromStr.split("-")[2], 10);
+    const toDay = parseInt(toStr.split("-")[2], 10);
+    return `${fromDay}–${toDay} ${monthName.slice(0, 3)}`;
+  }
+  if (fromStr) {
+    const fromDay = parseInt(fromStr.split("-")[2], 10);
+    return `From ${fromDay} ${monthName.slice(0, 3)}`;
+  }
+  if (toStr) {
+    const toDay = parseInt(toStr.split("-")[2], 10);
+    return `Up to ${toDay} ${monthName.slice(0, 3)}`;
+  }
+  return "Full Month";
 };
 
 /* ── Multi-Select Checkbox Dropdown ── */
@@ -163,11 +138,11 @@ function MultiSelectDropdown({
       <button
         type="button"
         onClick={onToggle}
-        className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-700/60 bg-slate-900/80 text-slate-200 hover:bg-slate-800 transition min-w-[130px] shadow-sm"
+        className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 transition min-w-[130px] shadow-xs"
       >
         <span className="truncate">
-          <span className="text-slate-400 font-normal mr-1">{label}:</span>
-          <span className="text-indigo-300 font-medium">{buttonLabel}</span>
+          <span className="text-slate-500 font-normal mr-1">{label}:</span>
+          <span className="text-indigo-700 font-bold">{buttonLabel}</span>
         </span>
         <svg
           className={`w-3.5 h-3.5 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}
@@ -181,23 +156,23 @@ function MultiSelectDropdown({
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/20" onClick={onClose} />
-          <div className="absolute left-0 top-full mt-1.5 w-64 rounded-xl shadow-2xl bg-slate-900 border border-slate-700 p-2 z-50 text-xs backdrop-blur-xl">
-            <div className="flex items-center justify-between px-2 py-1 mb-1.5 border-b border-slate-800">
-              <span className="font-semibold text-slate-300">{label} Filter</span>
+          <div className="fixed inset-0 z-40 bg-black/10" onClick={onClose} />
+          <div className="absolute left-0 top-full mt-1.5 w-64 rounded-xl shadow-2xl bg-white border border-slate-200 p-2 z-50 text-xs backdrop-blur-xl">
+            <div className="flex items-center justify-between px-2 py-1 mb-1.5 border-b border-slate-100">
+              <span className="font-bold text-slate-800">{label} Filter</span>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => onChange(options.map((o) => o.key))}
-                  className="text-[11px] text-indigo-400 hover:underline"
+                  className="text-[11px] text-indigo-600 hover:underline font-semibold"
                 >
                   All
                 </button>
-                <span className="text-slate-600">|</span>
+                <span className="text-slate-300">|</span>
                 <button
                   type="button"
                   onClick={() => onChange([])}
-                  className="text-[11px] text-slate-400 hover:underline"
+                  className="text-[11px] text-slate-500 hover:underline"
                 >
                   Clear
                 </button>
@@ -210,13 +185,13 @@ function MultiSelectDropdown({
                 placeholder={`Search ${label}...`}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                className="w-full px-2 py-1 rounded bg-slate-950/80 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-indigo-500"
+                className="w-full px-2 py-1 rounded bg-slate-50 border border-slate-200 text-slate-900 text-xs focus:outline-none focus:border-indigo-500"
               />
             </div>
 
             <div className="max-h-52 overflow-y-auto space-y-0.5 pr-1 custom-scrollbar">
               {filteredOptions.length === 0 ? (
-                <div className="text-slate-500 text-center py-2">No matches</div>
+                <div className="text-slate-400 text-center py-2">No matches</div>
               ) : (
                 filteredOptions.map((o) => {
                   const checked = selSet.has(o.key);
@@ -224,15 +199,14 @@ function MultiSelectDropdown({
                     <label
                       key={o.key}
                       onClick={() => toggleItem(o.key)}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition select-none ${
-                        checked ? "bg-indigo-950/50 text-indigo-200 font-medium" : "text-slate-300 hover:bg-slate-800/60"
-                      }`}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition select-none ${checked ? "bg-indigo-50 text-indigo-800 font-semibold" : "text-slate-700 hover:bg-slate-100"
+                        }`}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => {}}
-                        className="rounded border-slate-700 text-indigo-600 focus:ring-0 focus:ring-offset-0 bg-slate-950"
+                        onChange={() => { }}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-0 focus:ring-offset-0 bg-white"
                       />
                       <span className="truncate flex-1" title={o.label}>
                         {o.label}
@@ -265,13 +239,25 @@ export default function MonthComparePage() {
   const [activeTab, setActiveTab] = useState<TabKey>("deep-dive");
   const [selectedDim, setSelectedDim] = useState<DimensionKey>("trade");
 
-  // Selected Months & Date Ranges for Comparison
+  // Selected Months for Comparison
   const [monthA, setMonthA] = useState<string>("");
   const [monthB, setMonthB] = useState<string>("");
-  const [dateFromA, setDateFromA] = useState<string>("");
-  const [dateToA, setDateToA] = useState<string>("");
-  const [dateFromB, setDateFromB] = useState<string>("");
-  const [dateToB, setDateToB] = useState<string>("");
+
+  // Date Comparison Mode:
+  // "synced" = Like-for-like day of month comparison (e.g., 1–24 Aug vs 1–24 Sep)
+  // "custom" = Independent calendar date pickers for Month A and Month B
+  const [dateMode, setDateMode] = useState<"synced" | "custom">("synced");
+
+  // Synced Day Range (1..31)
+  const [dayFrom, setDayFrom] = useState<number>(1);
+  const [dayTo, setDayTo] = useState<number>(31);
+  const [activePreset, setActivePreset] = useState<string>("full");
+
+  // Custom Calendar Dates (for custom mode)
+  const [aFrom, setAFrom] = useState<string>("");
+  const [aTo, setATo] = useState<string>("");
+  const [bFrom, setBFrom] = useState<string>("");
+  const [bTo, setBTo] = useState<string>("");
 
   // Dimension Filters
   const [selTrades, setSelTrades] = useState<string[]>([]);
@@ -279,7 +265,6 @@ export default function MonthComparePage() {
   const [selCities, setSelCities] = useState<string[]>([]);
   const [selCategories, setSelCategories] = useState<string[]>([]);
   const [selStatuses, setSelStatuses] = useState<string[]>([]);
-  const [selSkus, setSelSkus] = useState<string[]>([]);
   const [skuSearch, setSkuSearch] = useState("");
   const [skuFilterType, setSkuFilterType] = useState<"all" | "gainers" | "droppers" | "growth" | "gap">("all");
 
@@ -296,32 +281,6 @@ export default function MonthComparePage() {
   // Matrix entity selector
   const [matrixDim, setMatrixDim] = useState<DimensionKey>("trade");
 
-  // Precompute each month's date bounds from data
-  const monthDateBounds = useMemo(() => {
-    if (!d) return new Map<string, { min: string; max: string }>();
-    const map = new Map<string, { minNum: number; maxNum: number }>();
-    for (const r of d.rows) {
-      const m = d.dims.month[r[0]];
-      const ymd = r[11];
-      if (!ymd || ymd < 10000000) continue;
-      if (!map.has(m)) {
-        map.set(m, { minNum: ymd, maxNum: ymd });
-      } else {
-        const cur = map.get(m)!;
-        if (ymd < cur.minNum) cur.minNum = ymd;
-        if (ymd > cur.maxNum) cur.maxNum = ymd;
-      }
-    }
-    const res = new Map<string, { min: string; max: string }>();
-    map.forEach((val, m) => {
-      res.set(m, {
-        min: ymdToDateStr(val.minNum),
-        max: ymdToDateStr(val.maxNum),
-      });
-    });
-    return res;
-  }, [d]);
-
   useEffect(() => {
     fetch("/api/data")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status))))
@@ -329,38 +288,12 @@ export default function MonthComparePage() {
         setD(data);
         if (data?.dims?.month && data.dims.month.length > 0) {
           const mList = data.dims.month;
-          let mA = mList[0];
-          let mB = mList[0];
           if (mList.length >= 2) {
-            mA = mList[mList.length - 2]; // Previous month
-            mB = mList[mList.length - 1]; // Latest month
-          }
-          setMonthA(mA);
-          setMonthB(mB);
-
-          // Compute initial date bounds for month A and B
-          const map = new Map<string, { minNum: number; maxNum: number }>();
-          for (const r of data.rows) {
-            const m = data.dims.month[r[0]];
-            const ymd = r[11];
-            if (!ymd || ymd < 10000000) continue;
-            if (!map.has(m)) {
-              map.set(m, { minNum: ymd, maxNum: ymd });
-            } else {
-              const cur = map.get(m)!;
-              if (ymd < cur.minNum) cur.minNum = ymd;
-              if (ymd > cur.maxNum) cur.maxNum = ymd;
-            }
-          }
-          const bA = map.get(mA);
-          if (bA) {
-            setDateFromA(ymdToDateStr(bA.minNum));
-            setDateToA(ymdToDateStr(bA.maxNum));
-          }
-          const bB = map.get(mB);
-          if (bB) {
-            setDateFromB(ymdToDateStr(bB.minNum));
-            setDateToB(ymdToDateStr(bB.maxNum));
+            setMonthA(mList[mList.length - 2]); // Previous month
+            setMonthB(mList[mList.length - 1]); // Latest month
+          } else {
+            setMonthA(mList[0]);
+            setMonthB(mList[0]);
           }
         }
       })
@@ -373,7 +306,6 @@ export default function MonthComparePage() {
   const allCities = useMemo(() => d?.dims?.city || [], [d]);
   const allCategories = useMemo(() => d?.dims?.category || [], [d]);
   const allStatuses = useMemo(() => d?.dims?.status || [], [d]);
-  const allSkus = useMemo(() => d?.dims?.sku || [], [d]);
 
   // Metric index mappings
   const PO_IDX = metric === "val" ? 8 : 7;
@@ -381,13 +313,190 @@ export default function MonthComparePage() {
   const unitLabel = metric === "val" ? "₹ Lakhs" : "Units";
   const unitSymbol = metric === "val" ? "₹L" : "U";
 
+  // Month-bounded date ranges computed from dataset rows
+  const monthBoundsA = useMemo(() => {
+    if (!d || !monthA || !d.dims?.month) return { min: "", max: "", minYmd: 0, maxYmd: 0, daysCount: 0 };
+    let minYmd = 99999999;
+    let maxYmd = 0;
+    const daysSet = new Set<number>();
+
+    for (const r of d.rows) {
+      if (d.dims.month[r[0]] === monthA) {
+        const ymd = r[11];
+        if (ymd > 19000101) {
+          if (ymd < minYmd) minYmd = ymd;
+          if (ymd > maxYmd) maxYmd = ymd;
+          daysSet.add(ymd);
+        }
+      }
+    }
+
+    if (maxYmd === 0) return { min: "", max: "", minYmd: 0, maxYmd: 0, daysCount: 0 };
+    return {
+      min: ymdToStr(minYmd),
+      max: ymdToStr(maxYmd),
+      minYmd,
+      maxYmd,
+      daysCount: daysSet.size,
+    };
+  }, [d, monthA]);
+
+  const monthBoundsB = useMemo(() => {
+    if (!d || !monthB || !d.dims?.month) return { min: "", max: "", minYmd: 0, maxYmd: 0, daysCount: 0 };
+    let minYmd = 99999999;
+    let maxYmd = 0;
+    const daysSet = new Set<number>();
+
+    for (const r of d.rows) {
+      if (d.dims.month[r[0]] === monthB) {
+        const ymd = r[11];
+        if (ymd > 19000101) {
+          if (ymd < minYmd) minYmd = ymd;
+          if (ymd > maxYmd) maxYmd = ymd;
+          daysSet.add(ymd);
+        }
+      }
+    }
+
+    if (maxYmd === 0) return { min: "", max: "", minYmd: 0, maxYmd: 0, daysCount: 0 };
+    return {
+      min: ymdToStr(minYmd),
+      max: ymdToStr(maxYmd),
+      minYmd,
+      maxYmd,
+      daysCount: daysSet.size,
+    };
+  }, [d, monthB]);
+
+  const maxDayA = useMemo(() => {
+    return monthBoundsA.maxYmd > 0 ? (monthBoundsA.maxYmd % 100) : 31;
+  }, [monthBoundsA]);
+
+  const maxDayB = useMemo(() => {
+    return monthBoundsB.maxYmd > 0 ? (monthBoundsB.maxYmd % 100) : 31;
+  }, [monthBoundsB]);
+
+  const applySyncedPreset = (preset: "full" | "mtd" | "cycle1" | "cycle2" | "cycle3" | "7d" | "14d") => {
+    setActivePreset(preset);
+    if (preset === "full") {
+      setDayFrom(1);
+      setDayTo(31);
+    } else if (preset === "mtd") {
+      setDayFrom(1);
+      setDayTo(maxDayB || 24);
+    } else if (preset === "cycle1") {
+      setDayFrom(1);
+      setDayTo(10);
+    } else if (preset === "cycle2") {
+      setDayFrom(11);
+      setDayTo(20);
+    } else if (preset === "cycle3") {
+      setDayFrom(21);
+      setDayTo(31);
+    } else if (preset === "7d") {
+      const end = maxDayB || 24;
+      setDayFrom(Math.max(1, end - 6));
+      setDayTo(end);
+    } else if (preset === "14d") {
+      const end = maxDayB || 24;
+      setDayFrom(Math.max(1, end - 13));
+      setDayTo(end);
+    }
+  };
+
+  // Presets bound strictly to the selected month's dates for custom mode
+  function applyPresetA(days: number) {
+    if (!monthBoundsA.max) {
+      setAFrom(""); setATo(""); return;
+    }
+    if (days === -1) { setAFrom(""); setATo(""); return; }
+    if (days === 0) {
+      setAFrom(monthBoundsA.min);
+      setATo(monthBoundsA.max);
+      return;
+    }
+    const dt = new Date(monthBoundsA.max + "T00:00:00Z");
+    dt.setUTCDate(dt.getUTCDate() - (days - 1));
+    const fromStr = dt.toISOString().slice(0, 10);
+    setAFrom(fromStr < monthBoundsA.min ? monthBoundsA.min : fromStr);
+    setATo(monthBoundsA.max);
+  }
+
+  function applyPresetB(days: number) {
+    if (!monthBoundsB.max) {
+      setBFrom(""); setBTo(""); return;
+    }
+    if (days === -1) { setBFrom(""); setBTo(""); return; }
+    if (days === 0) {
+      setBFrom(monthBoundsB.min);
+      setBTo(monthBoundsB.max);
+      return;
+    }
+    const dt = new Date(monthBoundsB.max + "T00:00:00Z");
+    dt.setUTCDate(dt.getUTCDate() - (days - 1));
+    const fromStr = dt.toISOString().slice(0, 10);
+    setBFrom(fromStr < monthBoundsB.min ? monthBoundsB.min : fromStr);
+    setBTo(monthBoundsB.max);
+  }
+
+  function syncCustomFromAtoB() {
+    if (!aFrom && !aTo) return;
+    const fromD = aFrom ? parseInt(aFrom.split("-")[2], 10) : 1;
+    const toD = aTo ? parseInt(aTo.split("-")[2], 10) : (monthBoundsA.maxYmd % 100 || 31);
+    if (!monthBoundsB.minYmd) return;
+    const bYear = Math.floor(monthBoundsB.minYmd / 10000);
+    const bMonth = Math.floor((monthBoundsB.minYmd % 10000) / 100);
+    const maxB = monthBoundsB.maxYmd % 100 || 31;
+    const bStartD = Math.max(1, Math.min(fromD, maxB));
+    const bEndD = Math.max(bStartD, Math.min(toD, maxB));
+    setBFrom(`${bYear}-${String(bMonth).padStart(2, "0")}-${String(bStartD).padStart(2, "0")}`);
+    setBTo(`${bYear}-${String(bMonth).padStart(2, "0")}-${String(bEndD).padStart(2, "0")}`);
+  }
+
+  function syncCustomFromBtoA() {
+    if (!bFrom && !bTo) return;
+    const fromD = bFrom ? parseInt(bFrom.split("-")[2], 10) : 1;
+    const toD = bTo ? parseInt(bTo.split("-")[2], 10) : (monthBoundsB.maxYmd % 100 || 31);
+    if (!monthBoundsA.minYmd) return;
+    const aYear = Math.floor(monthBoundsA.minYmd / 10000);
+    const aMonth = Math.floor((monthBoundsA.minYmd % 10000) / 100);
+    const maxA = monthBoundsA.maxYmd % 100 || 31;
+    const aStartD = Math.max(1, Math.min(fromD, maxA));
+    const aEndD = Math.max(aStartD, Math.min(toD, maxA));
+    setAFrom(`${aYear}-${String(aMonth).padStart(2, "0")}-${String(aStartD).padStart(2, "0")}`);
+    setATo(`${aYear}-${String(aMonth).padStart(2, "0")}-${String(aEndD).padStart(2, "0")}`);
+  }
+
+  const handleMonthAChange = (newM: string) => {
+    setMonthA(newM);
+    setAFrom("");
+    setATo("");
+  };
+
+  const handleMonthBChange = (newM: string) => {
+    setMonthB(newM);
+    setBFrom("");
+    setBTo("");
+  };
+
+  const handleSwapMonths = () => {
+    const tempM = monthA;
+    const tempFrom = aFrom;
+    const tempTo = aTo;
+    setMonthA(monthB);
+    setMonthB(tempM);
+    setAFrom(bFrom);
+    setATo(bTo);
+    setBFrom(tempFrom);
+    setBTo(tempTo);
+  };
+
   // Filter options mapping
   const tradeOptions = useMemo(() => allTrades.map((t) => ({ key: t, label: t })), [allTrades]);
   const regionOptions = useMemo(() => allRegions.map((r) => ({ key: r, label: r })), [allRegions]);
   const cityOptions = useMemo(() => allCities.map((c) => ({ key: c, label: c })), [allCities]);
   const catOptions = useMemo(() => allCategories.map((c) => ({ key: c, label: c })), [allCategories]);
   const statusOptions = useMemo(() => allStatuses.map((s) => ({ key: s, label: s })), [allStatuses]);
-  const skuOptions = useMemo(() => allSkus.map((s) => ({ key: s, label: s })), [allSkus]);
 
   // Active filter sets
   const tradeSet = useMemo(() => (selTrades.length ? new Set(selTrades) : null), [selTrades]);
@@ -395,123 +504,176 @@ export default function MonthComparePage() {
   const citySet = useMemo(() => (selCities.length ? new Set(selCities) : null), [selCities]);
   const catSet = useMemo(() => (selCategories.length ? new Set(selCategories) : null), [selCategories]);
   const statusSet = useMemo(() => (selStatuses.length ? new Set(selStatuses) : null), [selStatuses]);
-  const skuSet = useMemo(() => (selSkus.length ? new Set(selSkus) : null), [selSkus]);
 
-  // Day calculations for Period A & B
-  const maxDaysA = useMemo(() => getMaxDaysInMonth(dateFromA || dateToA || "2026-08-01"), [dateFromA, dateToA]);
-  const dayFromA = useMemo(() => getDayFromDateStr(dateFromA), [dateFromA]);
-  const dayToA = useMemo(() => getDayFromDateStr(dateToA), [dateToA]);
+  // Normalized safe integer dates for Month A and Month B
+  const effectiveAFromYmd = useMemo(() => {
+    if (dateMode === "synced") {
+      if (activePreset === "full" && dayFrom === 1 && dayTo >= 31) return 0;
+      if (!monthBoundsA.minYmd) return 0;
+      const y = Math.floor(monthBoundsA.minYmd / 10000);
+      const m = Math.floor((monthBoundsA.minYmd % 10000) / 100);
+      const maxD = monthBoundsA.maxYmd % 100 || 31;
+      const d = Math.max(1, Math.min(dayFrom, maxD));
+      return y * 10000 + m * 100 + d;
+    }
+    const f = dateToYmd(aFrom);
+    const t = dateToYmd(aTo);
+    if (f > 0 && t > 0) return Math.min(f, t);
+    if (f > 0) return f;
+    return 0;
+  }, [dateMode, activePreset, dayFrom, dayTo, monthBoundsA, aFrom, aTo]);
 
-  const maxDaysB = useMemo(() => getMaxDaysInMonth(dateFromB || dateToB || "2026-09-01"), [dateFromB, dateToB]);
-  const dayFromB = useMemo(() => getDayFromDateStr(dateFromB), [dateFromB]);
-  const dayToB = useMemo(() => getDayFromDateStr(dateToB), [dateToB]);
+  const effectiveAToYmd = useMemo(() => {
+    if (dateMode === "synced") {
+      if (activePreset === "full" && dayFrom === 1 && dayTo >= 31) return 0;
+      if (!monthBoundsA.minYmd) return 0;
+      const y = Math.floor(monthBoundsA.minYmd / 10000);
+      const m = Math.floor((monthBoundsA.minYmd % 10000) / 100);
+      const maxD = monthBoundsA.maxYmd % 100 || 31;
+      const d = Math.max(1, Math.min(dayTo, maxD));
+      return y * 10000 + m * 100 + d;
+    }
+    const f = dateToYmd(aFrom);
+    const t = dateToYmd(aTo);
+    if (f > 0 && t > 0) return Math.max(f, t);
+    if (t > 0) return t;
+    return 0;
+  }, [dateMode, activePreset, dayFrom, dayTo, monthBoundsA, aFrom, aTo]);
 
-  // Date range conversions to YYYYMMDD
-  const ymdFromA = useMemo(() => dateStrToYmd(dateFromA), [dateFromA]);
-  const ymdToA = useMemo(() => dateStrToYmd(dateToA), [dateToA]);
-  const ymdFromB = useMemo(() => dateStrToYmd(dateFromB), [dateFromB]);
-  const ymdToB = useMemo(() => dateStrToYmd(dateToB), [dateToB]);
+  const effectiveBFromYmd = useMemo(() => {
+    if (dateMode === "synced") {
+      if (activePreset === "full" && dayFrom === 1 && dayTo >= 31) return 0;
+      if (!monthBoundsB.minYmd) return 0;
+      const y = Math.floor(monthBoundsB.minYmd / 10000);
+      const m = Math.floor((monthBoundsB.minYmd % 10000) / 100);
+      const maxD = monthBoundsB.maxYmd % 100 || 31;
+      const d = Math.max(1, Math.min(dayFrom, maxD));
+      return y * 10000 + m * 100 + d;
+    }
+    const f = dateToYmd(bFrom);
+    const t = dateToYmd(bTo);
+    if (f > 0 && t > 0) return Math.min(f, t);
+    if (f > 0) return f;
+    return 0;
+  }, [dateMode, activePreset, dayFrom, dayTo, monthBoundsB, bFrom, bTo]);
 
-  // Row matching predicates for Period A and Period B
-  const isRowInA = useMemo(() => {
-    return (r: number[]) => {
-      if (!d) return false;
-      const rYmd = r[11];
-      if (ymdFromA || ymdToA) {
-        if (rYmd && rYmd >= 10000000) {
-          if (ymdFromA && rYmd < ymdFromA) return false;
-          if (ymdToA && rYmd > ymdToA) return false;
-          return true;
-        }
-      }
+  const effectiveBToYmd = useMemo(() => {
+    if (dateMode === "synced") {
+      if (activePreset === "full" && dayFrom === 1 && dayTo >= 31) return 0;
+      if (!monthBoundsB.minYmd) return 0;
+      const y = Math.floor(monthBoundsB.minYmd / 10000);
+      const m = Math.floor((monthBoundsB.minYmd % 10000) / 100);
+      const maxD = monthBoundsB.maxYmd % 100 || 31;
+      const d = Math.max(1, Math.min(dayTo, maxD));
+      return y * 10000 + m * 100 + d;
+    }
+    const f = dateToYmd(bFrom);
+    const t = dateToYmd(bTo);
+    if (f > 0 && t > 0) return Math.max(f, t);
+    if (t > 0) return t;
+    return 0;
+  }, [dateMode, activePreset, dayFrom, dayTo, monthBoundsB, bFrom, bTo]);
+
+  const rangeLabelA = useMemo(() => {
+    if (dateMode === "synced") {
+      if (activePreset === "full" && dayFrom === 1 && dayTo >= 31) return "";
+      const maxD = monthBoundsA.maxYmd % 100 || 31;
+      const startD = Math.max(1, Math.min(dayFrom, maxD));
+      const endD = Math.max(startD, Math.min(dayTo, maxD));
+      return `${startD}–${endD} ${monthA.slice(0, 3)}`;
+    }
+    return formatRangeLabel(aFrom, aTo, monthA);
+  }, [dateMode, activePreset, dayFrom, dayTo, monthBoundsA, monthA, aFrom, aTo]);
+
+  const rangeLabelB = useMemo(() => {
+    if (dateMode === "synced") {
+      if (activePreset === "full" && dayFrom === 1 && dayTo >= 31) return "";
+      const maxD = monthBoundsB.maxYmd % 100 || 31;
+      const startD = Math.max(1, Math.min(dayFrom, maxD));
+      const endD = Math.max(startD, Math.min(dayTo, maxD));
+      return `${startD}–${endD} ${monthB.slice(0, 3)}`;
+    }
+    return formatRangeLabel(bFrom, bTo, monthB);
+  }, [dateMode, activePreset, dayFrom, dayTo, monthBoundsB, monthB, bFrom, bTo]);
+
+  // Common dimension filter function
+  const passesDimFilters = (r: number[]) => {
+    const tradeName = d!.dims.trade[r[1]];
+    const regionName = d!.dims.region[r[2]];
+    const cityName = d!.dims.city[r[3]];
+    const catName = d!.dims.category[r[4]];
+    const statusName = d!.dims.status[r[5]];
+    const skuName = d!.dims.sku[r[6]];
+    if (tradeSet && !tradeSet.has(tradeName)) return false;
+    if (regionSet && !regionSet.has(regionName)) return false;
+    if (citySet && !citySet.has(cityName)) return false;
+    if (catSet && !catSet.has(catName)) return false;
+    if (statusSet && !statusSet.has(statusName)) return false;
+    if (skuSearch.trim()) {
+      const q = skuSearch.toLowerCase();
+      const mmd = mmdGroup(skuName);
+      if (!skuName.toLowerCase().includes(q) && !mmd.name.toLowerCase().includes(q) && !mmd.code.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  };
+
+  // Month A rows — filtered by Month A date range
+  const filteredRowsA = useMemo(() => {
+    if (!d || !monthA) return [];
+    return d.rows.filter((r) => {
       const m = d.dims.month[r[0]];
-      return m === monthA;
-    };
-  }, [d, ymdFromA, ymdToA, monthA]);
+      if (m !== monthA) return false;
+      if (effectiveAFromYmd > 0 && r[11] < effectiveAFromYmd) return false;
+      if (effectiveAToYmd > 0 && r[11] > effectiveAToYmd) return false;
+      return passesDimFilters(r);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d, monthA, effectiveAFromYmd, effectiveAToYmd, tradeSet, regionSet, citySet, catSet, statusSet, skuSearch]);
 
-  const isRowInB = useMemo(() => {
-    return (r: number[]) => {
-      if (!d) return false;
-      const rYmd = r[11];
-      if (ymdFromB || ymdToB) {
-        if (rYmd && rYmd >= 10000000) {
-          if (ymdFromB && rYmd < ymdFromB) return false;
-          if (ymdToB && rYmd > ymdToB) return false;
-          return true;
-        }
-      }
+  // Month B rows — filtered by Month B date range
+  const filteredRowsB = useMemo(() => {
+    if (!d || !monthB) return [];
+    return d.rows.filter((r) => {
       const m = d.dims.month[r[0]];
-      return m === monthB;
-    };
-  }, [d, ymdFromB, ymdToB, monthB]);
+      if (m !== monthB) return false;
+      if (effectiveBFromYmd > 0 && r[11] < effectiveBFromYmd) return false;
+      if (effectiveBToYmd > 0 && r[11] > effectiveBToYmd) return false;
+      return passesDimFilters(r);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d, monthB, effectiveBFromYmd, effectiveBToYmd, tradeSet, regionSet, citySet, catSet, statusSet, skuSearch]);
 
-  // Filtered rows by dimension filters
+  // Combined rows for matrix (all months, common dimension filters)
   const filteredRows = useMemo(() => {
     if (!d) return [];
-    return d.rows.filter((r) => {
-      const tradeName = d.dims.trade[r[1]];
-      const regionName = d.dims.region[r[2]];
-      const cityName = d.dims.city[r[3]];
-      const catName = d.dims.category[r[4]];
-      const statusName = d.dims.status[r[5]];
-      const skuName = d.dims.sku[r[6]];
+    return d.rows.filter((r) => passesDimFilters(r));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d, tradeSet, regionSet, citySet, catSet, statusSet, skuSearch]);
 
-      if (tradeSet && !tradeSet.has(tradeName)) return false;
-      if (regionSet && !regionSet.has(regionName)) return false;
-      if (citySet && !citySet.has(cityName)) return false;
-      if (catSet && !catSet.has(catName)) return false;
-      if (statusSet && !statusSet.has(statusName)) return false;
-      if (skuSet && !skuSet.has(skuName)) return false;
-      if (skuSearch.trim()) {
-        const q = skuSearch.toLowerCase();
-        if (!skuName.toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
-  }, [d, tradeSet, regionSet, citySet, catSet, statusSet, skuSet, skuSearch]);
-
-  // Aggregate stats directly for Period A and Period B
-  const { statsA, statsB, countA, countB } = useMemo(() => {
-    const stA = { po: 0, grn: 0, gap: 0, fr: 0, poCount: new Set<number>(), skus: new Set<number>(), cities: new Set<number>() };
-    const stB = { po: 0, grn: 0, gap: 0, fr: 0, poCount: new Set<number>(), skus: new Set<number>(), cities: new Set<number>() };
-    let cntA = 0;
-    let cntB = 0;
-
-    if (!d) return { statsA: stA, statsB: stB, countA: 0, countB: 0 };
-
-    for (const r of filteredRows) {
-      const inA = isRowInA(r);
-      const inB = isRowInB(r);
-      const poVal = r[PO_IDX];
-      const grnVal = r[GRN_IDX];
-
-      if (inA) {
-        cntA++;
-        stA.po += poVal;
-        stA.grn += grnVal;
-        stA.poCount.add(r[12]);
-        stA.skus.add(r[6]);
-        stA.cities.add(r[3]);
-      }
-      if (inB) {
-        cntB++;
-        stB.po += poVal;
-        stB.grn += grnVal;
-        stB.poCount.add(r[12]);
-        stB.skus.add(r[6]);
-        stB.cities.add(r[3]);
-      }
+  // Aggregate stats — Month A and Month B independently
+  const statsA = useMemo(() => {
+    const st = { po: 0, grn: 0, gap: 0, fr: 0, poCount: new Set<number>(), skus: new Set<number>(), cities: new Set<number>() };
+    for (const r of filteredRowsA) {
+      st.po += r[PO_IDX]; st.grn += r[GRN_IDX];
+      st.poCount.add(r[12]); st.skus.add(r[6]); st.cities.add(r[3]);
     }
+    st.gap = Math.max(0, st.po - st.grn);
+    st.fr = st.po > 0 ? (st.grn / st.po) * 100 : 0;
+    return st;
+  }, [filteredRowsA, PO_IDX, GRN_IDX]);
 
-    stA.gap = Math.max(0, stA.po - stA.grn);
-    stA.fr = stA.po > 0 ? (stA.grn / stA.po) * 100 : 0;
-    stB.gap = Math.max(0, stB.po - stB.grn);
-    stB.fr = stB.po > 0 ? (stB.grn / stB.po) * 100 : 0;
+  const statsB = useMemo(() => {
+    const st = { po: 0, grn: 0, gap: 0, fr: 0, poCount: new Set<number>(), skus: new Set<number>(), cities: new Set<number>() };
+    for (const r of filteredRowsB) {
+      st.po += r[PO_IDX]; st.grn += r[GRN_IDX];
+      st.poCount.add(r[12]); st.skus.add(r[6]); st.cities.add(r[3]);
+    }
+    st.gap = Math.max(0, st.po - st.grn);
+    st.fr = st.po > 0 ? (st.grn / st.po) * 100 : 0;
+    return st;
+  }, [filteredRowsB, PO_IDX, GRN_IDX]);
 
-    return { statsA: stA, statsB: stB, countA: cntA, countB: cntB };
-  }, [d, filteredRows, PO_IDX, GRN_IDX, isRowInA, isRowInB]);
-
-  // Differences between Period A and Period B
+  // Differences between Month A and Month B
   const diffPo = statsB.po - statsA.po;
   const diffPoPct = statsA.po > 0 ? (diffPo / statsA.po) * 100 : 0;
   const diffGrn = statsB.grn - statsA.grn;
@@ -572,11 +734,7 @@ export default function MonthComparePage() {
       return { key: "all", name: "All" };
     };
 
-    for (const r of filteredRows) {
-      const inA = isRowInA(r);
-      const inB = isRowInB(r);
-      if (!inA && !inB) continue;
-
+    const ensureItem = (r: number[]) => {
       const { key, name, subName } = getDimKey(r);
       if (!map.has(key)) {
         map.set(key, {
@@ -598,19 +756,21 @@ export default function MonthComparePage() {
           diffGap: 0,
         });
       }
+      return map.get(key)!;
+    };
 
-      const item = map.get(key)!;
-      const poVal = r[PO_IDX];
-      const grnVal = r[GRN_IDX];
+    // Aggregate accurately from date-filtered Month A rows
+    for (const r of filteredRowsA) {
+      const item = ensureItem(r);
+      item.aPo += r[PO_IDX];
+      item.aGrn += r[GRN_IDX];
+    }
 
-      if (inA) {
-        item.aPo += poVal;
-        item.aGrn += grnVal;
-      }
-      if (inB) {
-        item.bPo += poVal;
-        item.bGrn += grnVal;
-      }
+    // Aggregate accurately from date-filtered Month B rows
+    for (const r of filteredRowsB) {
+      const item = ensureItem(r);
+      item.bPo += r[PO_IDX];
+      item.bGrn += r[GRN_IDX];
     }
 
     const res: Agg[] = Array.from(map.values()).map((it) => {
@@ -657,7 +817,7 @@ export default function MonthComparePage() {
 
       return sortDir === 1 ? vA - vB : vB - vA;
     });
-  }, [d, filteredRows, selectedDim, isRowInA, isRowInB, PO_IDX, GRN_IDX, sortCol, sortDir]);
+  }, [d, filteredRowsA, filteredRowsB, selectedDim, PO_IDX, GRN_IDX, sortCol, sortDir]);
 
   // SKU Comparison List
   const skuComparisonData = useMemo(() => {
@@ -687,11 +847,7 @@ export default function MonthComparePage() {
 
     const map = new Map<number, SkuAgg>();
 
-    for (const r of filteredRows) {
-      const inA = isRowInA(r);
-      const inB = isRowInB(r);
-      if (!inA && !inB) continue;
-
+    for (const r of filteredRowsA) {
       const skuId = r[6];
       if (!map.has(skuId)) {
         const skuName = d.dims.sku[skuId] || "Unknown SKU";
@@ -723,17 +879,44 @@ export default function MonthComparePage() {
       }
 
       const item = map.get(skuId)!;
-      const poVal = r[PO_IDX];
-      const grnVal = r[GRN_IDX];
+      item.aPo += r[PO_IDX];
+      item.aGrn += r[GRN_IDX];
+    }
 
-      if (inA) {
-        item.aPo += poVal;
-        item.aGrn += grnVal;
+    for (const r of filteredRowsB) {
+      const skuId = r[6];
+      if (!map.has(skuId)) {
+        const skuName = d.dims.sku[skuId] || "Unknown SKU";
+        const cat = d.dims.category[r[4]] || "General";
+        const icon = matchSkuIcon(skuName);
+        const mmd = mmdGroup(skuName);
+
+        map.set(skuId, {
+          skuId,
+          skuName,
+          category: cat,
+          icon,
+          mmd,
+          aPo: 0,
+          aGrn: 0,
+          aFr: 0,
+          aGap: 0,
+          bPo: 0,
+          bGrn: 0,
+          bFr: 0,
+          bGap: 0,
+          diffPo: 0,
+          diffPoPct: 0,
+          diffFr: 0,
+          diffGap: 0,
+          statusA: "None",
+          statusB: "None",
+        });
       }
-      if (inB) {
-        item.bPo += poVal;
-        item.bGrn += grnVal;
-      }
+
+      const item = map.get(skuId)!;
+      item.bPo += r[PO_IDX];
+      item.bGrn += r[GRN_IDX];
     }
 
     const items = Array.from(map.values()).map((it) => {
@@ -778,7 +961,7 @@ export default function MonthComparePage() {
       if (skuFilterType === "growth") return b.diffPo - a.diffPo;
       return b.bPo - a.bPo;
     });
-  }, [d, filteredRows, isRowInA, isRowInB, PO_IDX, GRN_IDX, skuFilterType]);
+  }, [d, filteredRowsA, filteredRowsB, monthA, monthB, PO_IDX, GRN_IDX, skuFilterType]);
 
   // Master Pivot Matrix Data (All Months Side-by-Side)
   const matrixData = useMemo(() => {
@@ -874,7 +1057,7 @@ export default function MonthComparePage() {
     const poGrowers = [...dimensionData].sort((a, b) => b.diffPo - a.diffPo);
     const topDemand = poGrowers[0];
 
-    // Biggest Gap contributor in Period B
+    // Biggest Gap contributor in Month B
     const gapLeaders = [...dimensionData].sort((a, b) => b.bGap - a.bGap);
     const topGap = gapLeaders[0];
 
@@ -886,167 +1069,11 @@ export default function MonthComparePage() {
     };
   }, [dimensionData]);
 
-  // Handle Month A change
-  const handleMonthAChange = (newMonth: string) => {
-    setMonthA(newMonth);
-    const b = monthDateBounds.get(newMonth);
-    if (b) {
-      setDateFromA(b.min);
-      setDateToA(b.max);
-    }
-  };
-
-  // Handle Month B change
-  const handleMonthBChange = (newMonth: string) => {
-    setMonthB(newMonth);
-    const b = monthDateBounds.get(newMonth);
-    if (b) {
-      setDateFromB(b.min);
-      setDateToB(b.max);
-    }
-  };
-
-  // Day handlers for Period A
-  const handleDayFromAChange = (newDay: number) => {
-    const ym = dateFromA ? dateFromA.slice(0, 7) : (monthDateBounds.get(monthA)?.min.slice(0, 7) || "2026-08");
-    const newDate = `${ym}-${String(newDay).padStart(2, "0")}`;
-    setDateFromA(newDate);
-    if (dateToA && dateToA < newDate) {
-      setDateToA(newDate);
-    }
-  };
-
-  const handleDayToAChange = (newDay: number) => {
-    const ym = dateToA ? dateToA.slice(0, 7) : (monthDateBounds.get(monthA)?.max.slice(0, 7) || "2026-08");
-    const newDate = `${ym}-${String(newDay).padStart(2, "0")}`;
-    setDateToA(newDate);
-    if (dateFromA && dateFromA > newDate) {
-      setDateFromA(newDate);
-    }
-  };
-
-  const setDayRangeA = (startDay: number, endDay: number) => {
-    const ym = dateFromA ? dateFromA.slice(0, 7) : (monthDateBounds.get(monthA)?.min.slice(0, 7) || "2026-08");
-    const maxD = getMaxDaysInMonth(`${ym}-01`);
-    const d1 = Math.max(1, Math.min(startDay, maxD));
-    const d2 = Math.max(d1, Math.min(endDay, maxD));
-    setDateFromA(`${ym}-${String(d1).padStart(2, "0")}`);
-    setDateToA(`${ym}-${String(d2).padStart(2, "0")}`);
-  };
-
-  // Day handlers for Period B
-  const handleDayFromBChange = (newDay: number) => {
-    const ym = dateFromB ? dateFromB.slice(0, 7) : (monthDateBounds.get(monthB)?.min.slice(0, 7) || "2026-09");
-    const newDate = `${ym}-${String(newDay).padStart(2, "0")}`;
-    setDateFromB(newDate);
-    if (dateToB && dateToB < newDate) {
-      setDateToB(newDate);
-    }
-  };
-
-  const handleDayToBChange = (newDay: number) => {
-    const ym = dateToB ? dateToB.slice(0, 7) : (monthDateBounds.get(monthB)?.max.slice(0, 7) || "2026-09");
-    const newDate = `${ym}-${String(newDay).padStart(2, "0")}`;
-    setDateToB(newDate);
-    if (dateFromB && dateFromB > newDate) {
-      setDateFromB(newDate);
-    }
-  };
-
-  const setDayRangeB = (startDay: number, endDay: number) => {
-    const ym = dateFromB ? dateFromB.slice(0, 7) : (monthDateBounds.get(monthB)?.min.slice(0, 7) || "2026-09");
-    const maxD = getMaxDaysInMonth(`${ym}-01`);
-    const d1 = Math.max(1, Math.min(startDay, maxD));
-    const d2 = Math.max(d1, Math.min(endDay, maxD));
-    setDateFromB(`${ym}-${String(d1).padStart(2, "0")}`);
-    setDateToB(`${ym}-${String(d2).padStart(2, "0")}`);
-  };
-
-  // Apply Presets for Base Period A
-  const applyPresetA = (preset: "full" | "first-half" | "second-half" | "7d") => {
-    const b = monthDateBounds.get(monthA);
-    if (!b) return;
-    if (preset === "full") {
-      setDateFromA(b.min);
-      setDateToA(b.max);
-    } else if (preset === "first-half") {
-      const ym = b.min.slice(0, 7);
-      setDateFromA(`${ym}-01`);
-      setDateToA(`${ym}-15`);
-    } else if (preset === "second-half") {
-      const ym = b.max.slice(0, 7);
-      setDateFromA(`${ym}-16`);
-      setDateToA(b.max);
-    } else if (preset === "7d") {
-      const dt = new Date(b.max + "T00:00:00Z");
-      dt.setUTCDate(dt.getUTCDate() - 6);
-      setDateFromA(dt.toISOString().slice(0, 10));
-      setDateToA(b.max);
-    }
-  };
-
-  // Apply Presets for Comparison Period B
-  const applyPresetB = (preset: "full" | "first-half" | "second-half" | "match-span" | "7d") => {
-    const b = monthDateBounds.get(monthB);
-    if (!b) return;
-    if (preset === "full") {
-      setDateFromB(b.min);
-      setDateToB(b.max);
-    } else if (preset === "first-half") {
-      const ym = b.min.slice(0, 7);
-      setDateFromB(`${ym}-01`);
-      setDateToB(`${ym}-15`);
-    } else if (preset === "second-half") {
-      const ym = b.max.slice(0, 7);
-      setDateFromB(`${ym}-16`);
-      setDateToB(b.max);
-    } else if (preset === "match-span") {
-      if (dateFromA && dateToA) {
-        const ymB = b.min.slice(0, 7);
-        const dayA1 = dateFromA.slice(8, 10);
-        const dayA2 = dateToA.slice(8, 10);
-        setDateFromB(`${ymB}-${dayA1}`);
-        setDateToB(`${ymB}-${dayA2}`);
-      }
-    } else if (preset === "7d") {
-      const dt = new Date(b.max + "T00:00:00Z");
-      dt.setUTCDate(dt.getUTCDate() - 6);
-      setDateFromB(dt.toISOString().slice(0, 10));
-      setDateToB(b.max);
-    }
-  };
-
-  // Swap Periods A & B
-  const swapMonths = () => {
-    const tempM = monthA;
-    setMonthA(monthB);
-    setMonthB(tempM);
-
-    const tempFrom = dateFromA;
-    const tempTo = dateToA;
-    setDateFromA(dateFromB);
-    setDateToA(dateToB);
-    setDateFromB(tempFrom);
-    setDateToB(tempTo);
-  };
-
   // Quick switch between consecutive months
   const setConsecutivePair = (idx: number) => {
     if (idx >= 0 && idx < months.length - 1) {
-      const mA = months[idx];
-      const mB = months[idx + 1];
-      setMonthA(mA);
-      setMonthB(mB);
-      const bA = monthDateBounds.get(mA);
-      if (bA) {
-        setDateFromA(bA.min);
-        setDateToA(bA.max);
-      }
-      const bB = monthDateBounds.get(mB);
-      if (bB) {
-        setDateFromB(bB.min);
-        setDateToB(bB.max);
-      }
+      setMonthA(months[idx]);
+      setMonthB(months[idx + 1]);
     }
   };
 
@@ -1055,11 +1082,11 @@ export default function MonthComparePage() {
     if (dimensionData.length === 0) return;
     const header = [
       "Entity",
-      `${monthA} (${dateFromA} to ${dateToA}) PO (${unitLabel})`,
-      `${monthA} (${dateFromA} to ${dateToA}) GRN (${unitLabel})`,
+      `${monthA} PO (${unitLabel})`,
+      `${monthA} GRN (${unitLabel})`,
       `${monthA} FR %`,
-      `${monthB} (${dateFromB} to ${dateToB}) PO (${unitLabel})`,
-      `${monthB} (${dateFromB} to ${dateToB}) GRN (${unitLabel})`,
+      `${monthB} PO (${unitLabel})`,
+      `${monthB} GRN (${unitLabel})`,
       `${monthB} FR %`,
       `Diff PO (${unitLabel})`,
       "Diff PO %",
@@ -1085,7 +1112,7 @@ export default function MonthComparePage() {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Comparison_${monthA}_(${dateFromA}_to_${dateToA})_vs_${monthB}_(${dateFromB}_to_${dateToB})_${selectedDim}.csv`);
+    link.setAttribute("download", `MoM_Comparison_${monthA}_vs_${monthB}_${selectedDim}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1103,12 +1130,13 @@ export default function MonthComparePage() {
   const openSkuLightbox = (sku: (typeof skuComparisonData)[number]) => {
     setSkuPopup({
       icon: sku.icon,
-      name: sku.skuName,
+      name: sku.mmd?.name || sku.skuName,
       stats: [
+        { label: "MMD Item Code", value: sku.mmd?.code || "—" },
         { label: "Category", value: sku.category },
-        { label: `${monthA} (${formatDateShort(dateFromA)}–${formatDateShort(dateToA)}) PO Demand`, value: `${unitSymbol} ${L(sku.aPo)}` },
+        { label: `${monthA} PO Demand`, value: `${unitSymbol} ${L(sku.aPo)}` },
         { label: `${monthA} FR %`, value: `${sku.aFr.toFixed(1)}%`, cls: frColor(sku.aFr) },
-        { label: `${monthB} (${formatDateShort(dateFromB)}–${formatDateShort(dateToB)}) PO Demand`, value: `${unitSymbol} ${L(sku.bPo)}` },
+        { label: `${monthB} PO Demand`, value: `${unitSymbol} ${L(sku.bPo)}` },
         { label: `${monthB} FR %`, value: `${sku.bFr.toFixed(1)}%`, cls: frColor(sku.bFr) },
         {
           label: "MoM Fill Rate Δ",
@@ -1120,51 +1148,72 @@ export default function MonthComparePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#00072D] text-slate-100 pb-20 selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-full text-slate-800 pb-20">
       {/* ── HEADER BANNER ── */}
-      <div className="border-b border-white/10 bg-[#000c40]/80 backdrop-blur-xl sticky top-0 z-30 shadow-lg">
+      <div className="border-b border-slate-200/80 bg-white/90 backdrop-blur-xl sticky top-0 z-30 shadow-xs">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-2xl">⚖️</span>
-                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-sky-300 bg-clip-text text-transparent">
-                  Month & Day-Range Comparison Dashboard
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900">
+                  Month-on-Month Comparison Dashboard
                 </h1>
-                <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Dual-Period Analytics
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Side-by-Side Analytics
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                Select custom day spans (e.g. 1 to 5, 1 to 6), full months, demand variations, and fill rate performance
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                Analyze growth, supply shifts, demand variations, and fill rate performance across months
               </p>
             </div>
 
             {/* Top action bar: metric toggle + sync + upload */}
             <div className="flex items-center flex-wrap gap-2.5">
               {/* Metric Toggle */}
-              <div className="bg-slate-900/90 p-1 rounded-xl border border-white/10 flex items-center shadow-inner">
+              <div className="bg-slate-100 p-1 rounded-xl border border-slate-200 flex items-center shadow-inner">
                 <button
                   onClick={() => setMetric("val")}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                    metric === "val"
-                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${metric === "val"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                    }`}
                 >
                   ₹ Value (Lakhs)
                 </button>
                 <button
                   onClick={() => setMetric("qty")}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                    metric === "qty"
-                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${metric === "qty"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                    }`}
                 >
                   Quantity (Units)
                 </button>
               </div>
+
+              {/* Quick Dashboard Links */}
+              <Link
+                href="/dashboard/opportunity"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition shadow-xs"
+                title="Open Opportunity & Profit Recovery Dashboard"
+              >
+                <span>🎯 Opportunity</span>
+              </Link>
+              <Link
+                href="/dashboard/trending-analysis"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 transition shadow-xs"
+                title="Open Trending Analysis Dashboard"
+              >
+                <span>📈 Trending</span>
+              </Link>
+              <Link
+                href="/dashboard/heatmap"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition shadow-xs"
+                title="Open Heatmap Matrix Dashboard"
+              >
+                <span>🔥 Heatmap</span>
+              </Link>
 
               {/* Sync Status & Upload */}
               <SyncStatus />
@@ -1173,10 +1222,10 @@ export default function MonthComparePage() {
               {/* CSV Export */}
               <button
                 onClick={handleExportCSV}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 border border-white/10 hover:bg-white/10 text-slate-200 transition shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition shadow-xs"
                 title="Download current comparison table as CSV"
               >
-                <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
                 Export CSV
@@ -1184,451 +1233,433 @@ export default function MonthComparePage() {
             </div>
           </div>
 
-          {/* ── PERIOD & DAY/DATE RANGE SELECTION PANEL ── */}
-          <div className="mt-4 pt-4 border-t border-white/10">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
-              
-              {/* BASE PERIOD BOX (PERIOD A - SKY BLUE THEME) */}
-              <div className="lg:col-span-5 bg-gradient-to-br from-sky-950/40 via-slate-900/90 to-slate-900/90 border border-sky-500/30 rounded-2xl p-3 shadow-lg backdrop-blur-md">
-                <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-sky-500/20">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-pulse" />
-                    <span className="text-xs font-extrabold text-sky-300 uppercase tracking-wider">
-                      Base Period (A)
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-slate-400">Month:</span>
-                    <select
-                      value={monthA}
-                      onChange={(e) => handleMonthAChange(e.target.value)}
-                      className="bg-slate-950 border border-sky-500/40 rounded-lg px-2 py-0.5 text-xs font-bold text-sky-200 focus:outline-none focus:border-sky-400 cursor-pointer"
+          {/* ── MONTH SELECTION BAR ── */}
+          <div className="mt-4 pt-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Compare Side-by-Side:
+              </span>
+
+              {/* Month A Selector */}
+              <div className="flex items-center gap-2 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-300 shadow-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-sky-500 animate-pulse" />
+                <span className="text-xs text-sky-800 font-medium">Base Month:</span>
+                <select
+                  value={monthA}
+                  onChange={(e) => handleMonthAChange(e.target.value)}
+                  className="bg-transparent text-sm font-extrabold text-sky-900 focus:outline-none cursor-pointer"
+                >
+                  {months.map((m) => (
+                    <option key={`a-${m}`} value={m} className="bg-white text-slate-900">
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <span className="text-base font-extrabold text-slate-400">VS</span>
+
+              {/* Month B Selector */}
+              <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300 shadow-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs text-emerald-800 font-medium">Comparison Month:</span>
+                <select
+                  value={monthB}
+                  onChange={(e) => handleMonthBChange(e.target.value)}
+                  className="bg-transparent text-sm font-extrabold text-emerald-900 focus:outline-none cursor-pointer"
+                >
+                  {months.map((m) => (
+                    <option key={`b-${m}`} value={m} className="bg-white text-slate-900">
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Quick pair jumpers */}
+              {months.length > 2 && (
+                <div className="hidden lg:flex items-center gap-1 ml-2 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+                  <span className="text-slate-500 px-1.5 text-[11px] font-semibold">Quick Pairs:</span>
+                  {months.slice(0, -1).map((m, i) => (
+                    <button
+                      key={`pair-${i}`}
+                      onClick={() => setConsecutivePair(i)}
+                      className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${monthA === m && monthB === months[i + 1]
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "text-slate-600 hover:bg-white hover:text-slate-900"
+                        }`}
                     >
-                      {months.map((m) => (
-                        <option key={`a-${m}`} value={m} className="bg-slate-900 text-slate-100">
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      {m.slice(0, 3)} vs {months[i + 1].slice(0, 3)}
+                    </button>
+                  ))}
                 </div>
-
-                {/* Day Dropdowns + Date Inputs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                  {/* From Day / Date */}
-                  <div className="bg-slate-950/80 border border-sky-500/20 rounded-xl p-2">
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
-                      <span>From Date:</span>
-                      <span className="text-sky-300 font-bold font-mono">Day {dayFromA}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={dayFromA}
-                        onChange={(e) => handleDayFromAChange(parseInt(e.target.value, 10))}
-                        className="bg-sky-950 border border-sky-500/50 text-sky-200 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
-                        title="Select Start Day of Month"
-                      >
-                        {Array.from({ length: maxDaysA }, (_, i) => i + 1).map((day) => (
-                          <option key={`a-from-day-${day}`} value={day} className="bg-slate-900 text-slate-100">
-                            Day {day}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="date"
-                        value={dateFromA}
-                        onChange={(e) => setDateFromA(e.target.value)}
-                        min={d?.meta?.date_min}
-                        max={d?.meta?.date_max}
-                        className="flex-1 min-w-0 bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-400"
-                      />
-                    </div>
-                  </div>
-
-                  {/* To Day / Date */}
-                  <div className="bg-slate-950/80 border border-sky-500/20 rounded-xl p-2">
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
-                      <span>To Date:</span>
-                      <span className="text-sky-300 font-bold font-mono">Day {dayToA}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={dayToA}
-                        onChange={(e) => handleDayToAChange(parseInt(e.target.value, 10))}
-                        className="bg-sky-950 border border-sky-500/50 text-sky-200 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
-                        title="Select End Day of Month"
-                      >
-                        {Array.from({ length: maxDaysA }, (_, i) => i + 1).map((day) => (
-                          <option key={`a-to-day-${day}`} value={day} className="bg-slate-900 text-slate-100">
-                            Day {day}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="date"
-                        value={dateToA}
-                        onChange={(e) => setDateToA(e.target.value)}
-                        min={d?.meta?.date_min}
-                        max={d?.meta?.date_max}
-                        className="flex-1 min-w-0 bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Day Chips: 1-5, 1-6, 1-7, 1-10, 1-15, 16-End, Full */}
-                <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-white/5 overflow-x-auto text-[10px]">
-                  <span className="text-slate-400 font-semibold shrink-0 mr-0.5">Quick Days:</span>
-                  {[
-                    { label: "1–5", start: 1, end: 5 },
-                    { label: "1–6", start: 1, end: 6 },
-                    { label: "1–7", start: 1, end: 7 },
-                    { label: "1–10", start: 1, end: 10 },
-                    { label: "1–15", start: 1, end: 15 },
-                    { label: "16–End", start: 16, end: maxDaysA },
-                  ].map((chip) => {
-                    const active = dayFromA === chip.start && dayToA === chip.end;
-                    return (
-                      <button
-                        key={`chip-a-${chip.label}`}
-                        type="button"
-                        onClick={() => setDayRangeA(chip.start, chip.end)}
-                        className={`px-2 py-0.5 rounded font-bold transition shrink-0 ${
-                          active
-                            ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-500/40"
-                            : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
-                        }`}
-                      >
-                        {chip.label}
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => applyPresetA("full")}
-                    className={`px-2 py-0.5 rounded font-bold transition shrink-0 ${
-                      dayFromA === 1 && dayToA === maxDaysA
-                        ? "bg-sky-500 text-slate-950 shadow-md shadow-sky-500/40"
-                        : "bg-sky-950/60 hover:bg-sky-900/60 text-sky-300 border border-sky-800/40"
-                    }`}
-                  >
-                    Full Month
-                  </button>
-                </div>
-              </div>
-
-              {/* CENTER CONTROLS (VS, SWAP, QUICK PAIRS) */}
-              <div className="lg:col-span-2 flex flex-col items-center justify-center gap-2 py-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-black text-slate-400 tracking-wider bg-slate-900/80 px-2.5 py-1 rounded-xl border border-white/10 shadow-inner">
-                    VS
-                  </span>
-                  <button
-                    onClick={swapMonths}
-                    className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition shadow-sm"
-                    title="Swap Base and Comparison Periods"
-                  >
-                    <svg className="w-4 h-4 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Quick pair jumpers */}
-                {months.length > 2 && (
-                  <div className="flex flex-wrap items-center justify-center gap-1 text-[10px]">
-                    {months.slice(0, -1).map((m, i) => (
-                      <button
-                        key={`pair-${i}`}
-                        onClick={() => setConsecutivePair(i)}
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition ${
-                          monthA === m && monthB === months[i + 1]
-                            ? "bg-indigo-600 text-white font-bold"
-                            : "text-slate-400 hover:bg-white/10"
-                        }`}
-                      >
-                        {m.slice(0, 3)} vs {months[i + 1].slice(0, 3)}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* COMPARISON PERIOD BOX (PERIOD B - EMERALD GREEN THEME) */}
-              <div className="lg:col-span-5 bg-gradient-to-br from-emerald-950/40 via-slate-900/90 to-slate-900/90 border border-emerald-500/30 rounded-2xl p-3 shadow-lg backdrop-blur-md">
-                <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-emerald-500/20">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-xs font-extrabold text-emerald-300 uppercase tracking-wider">
-                      Comparison Period (B)
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-slate-400">Month:</span>
-                    <select
-                      value={monthB}
-                      onChange={(e) => handleMonthBChange(e.target.value)}
-                      className="bg-slate-950 border border-emerald-500/40 rounded-lg px-2 py-0.5 text-xs font-bold text-emerald-200 focus:outline-none focus:border-emerald-400 cursor-pointer"
-                    >
-                      {months.map((m) => (
-                        <option key={`b-${m}`} value={m} className="bg-slate-900 text-slate-100">
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Day Dropdowns + Date Inputs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                  {/* From Day / Date */}
-                  <div className="bg-slate-950/80 border border-emerald-500/20 rounded-xl p-2">
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
-                      <span>From Date:</span>
-                      <span className="text-emerald-300 font-bold font-mono">Day {dayFromB}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={dayFromB}
-                        onChange={(e) => handleDayFromBChange(parseInt(e.target.value, 10))}
-                        className="bg-emerald-950 border border-emerald-500/50 text-emerald-200 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
-                        title="Select Start Day of Month"
-                      >
-                        {Array.from({ length: maxDaysB }, (_, i) => i + 1).map((day) => (
-                          <option key={`b-from-day-${day}`} value={day} className="bg-slate-900 text-slate-100">
-                            Day {day}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="date"
-                        value={dateFromB}
-                        onChange={(e) => setDateFromB(e.target.value)}
-                        min={d?.meta?.date_min}
-                        max={d?.meta?.date_max}
-                        className="flex-1 min-w-0 bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-400"
-                      />
-                    </div>
-                  </div>
-
-                  {/* To Day / Date */}
-                  <div className="bg-slate-950/80 border border-emerald-500/20 rounded-xl p-2">
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold mb-1">
-                      <span>To Date:</span>
-                      <span className="text-emerald-300 font-bold font-mono">Day {dayToB}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={dayToB}
-                        onChange={(e) => handleDayToBChange(parseInt(e.target.value, 10))}
-                        className="bg-emerald-950 border border-emerald-500/50 text-emerald-200 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none cursor-pointer"
-                        title="Select End Day of Month"
-                      >
-                        {Array.from({ length: maxDaysB }, (_, i) => i + 1).map((day) => (
-                          <option key={`b-to-day-${day}`} value={day} className="bg-slate-900 text-slate-100">
-                            Day {day}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="date"
-                        value={dateToB}
-                        onChange={(e) => setDateToB(e.target.value)}
-                        min={d?.meta?.date_min}
-                        max={d?.meta?.date_max}
-                        className="flex-1 min-w-0 bg-slate-900/90 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Day Presets */}
-                <div className="flex items-center gap-1 mt-2 pt-1.5 border-t border-white/5 overflow-x-auto text-[10px]">
-                  <span className="text-slate-400 font-semibold shrink-0 mr-0.5">Quick Days:</span>
-                  {[
-                    { label: "1–5", start: 1, end: 5 },
-                    { label: "1–6", start: 1, end: 6 },
-                    { label: "1–7", start: 1, end: 7 },
-                    { label: "1–10", start: 1, end: 10 },
-                    { label: "1–15", start: 1, end: 15 },
-                    { label: "16–End", start: 16, end: maxDaysB },
-                  ].map((chip) => {
-                    const active = dayFromB === chip.start && dayToB === chip.end;
-                    return (
-                      <button
-                        key={`chip-b-${chip.label}`}
-                        type="button"
-                        onClick={() => setDayRangeB(chip.start, chip.end)}
-                        className={`px-2 py-0.5 rounded font-bold transition shrink-0 ${
-                          active
-                            ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/40"
-                            : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
-                        }`}
-                      >
-                        {chip.label}
-                      </button>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => applyPresetB("full")}
-                    className={`px-2 py-0.5 rounded font-bold transition shrink-0 ${
-                      dayFromB === 1 && dayToB === maxDaysB
-                        ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/40"
-                        : "bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/40"
-                    }`}
-                  >
-                    Full Month
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPresetB("match-span")}
-                    className="px-2 py-0.5 rounded bg-indigo-950/70 hover:bg-indigo-900/70 text-indigo-300 border border-indigo-700/40 font-bold shrink-0"
-                    title={`Match exact start & end days (${dayFromA} to ${dayToA}) from Base Period`}
-                  >
-                    ⚡ Match Base ({dayFromA}–{dayToA})
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
 
-            {/* Active Selection Summary Bar */}
-            <div className="mt-3 bg-slate-900/60 border border-white/10 rounded-xl px-3 py-1.5 flex flex-wrap items-center justify-between text-xs text-slate-400">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-indigo-400 font-bold">Active Comparison:</span>
-                <span className="bg-sky-950/80 text-sky-200 px-2 py-0.5 rounded border border-sky-800/50 font-mono text-[11px]">
-                  {monthA} · Day {dayFromA}–{dayToA} ({formatDateDisplay(dateFromA)} → {formatDateDisplay(dateToA)}) · {countA.toLocaleString("en-IN")} lines
-                </span>
-                <span className="text-slate-500 font-bold">VS</span>
-                <span className="bg-emerald-950/80 text-emerald-200 px-2 py-0.5 rounded border border-emerald-800/50 font-mono text-[11px]">
-                  {monthB} · Day {dayFromB}–{dayToB} ({formatDateDisplay(dateFromB)} → {formatDateDisplay(dateToB)}) · {countB.toLocaleString("en-IN")} lines
-                </span>
-              </div>
-              <div className="text-[11px] text-slate-500">
-                {metric === "val" ? "Values in ₹ Lakhs" : "Values in Qty Units"}
-              </div>
-            </div>
+            {/* Swap Button */}
+            <button
+              onClick={handleSwapMonths}
+              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              title="Swap Base and Comparison Months with their active date filters"
+            >
+              <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              Swap Months
+            </button>
           </div>
         </div>
       </div>
 
       {/* ── FILTER TOOLBAR ── */}
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 mt-4 relative z-30">
-        <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-3.5 backdrop-blur-md shadow-xl flex flex-wrap items-center justify-between gap-3 relative z-30">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5 mr-1">
-              <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              Filters:
-            </span>
+        <div className="bg-white/95 border border-slate-200/90 rounded-2xl p-3.5 shadow-sm space-y-3 relative z-30">
+          {/* Top Row: Date Range Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5 mr-1">
+                <span>🗓️</span> Date Range:
+              </span>
 
-            {/* Trade Filter */}
-            <MultiSelectDropdown
-              label="Trade"
-              options={tradeOptions}
-              selected={selTrades}
-              onChange={setSelTrades}
-              open={openDropdown === "trade"}
-              onToggle={() => setOpenDropdown(openDropdown === "trade" ? null : "trade")}
-              onClose={() => setOpenDropdown(null)}
-            />
-
-            {/* Region Filter */}
-            <MultiSelectDropdown
-              label="Region"
-              options={regionOptions}
-              selected={selRegions}
-              onChange={setSelRegions}
-              open={openDropdown === "region"}
-              onToggle={() => setOpenDropdown(openDropdown === "region" ? null : "region")}
-              onClose={() => setOpenDropdown(null)}
-            />
-
-            {/* City Filter */}
-            <MultiSelectDropdown
-              label="City"
-              options={cityOptions}
-              selected={selCities}
-              onChange={setSelCities}
-              open={openDropdown === "city"}
-              onToggle={() => setOpenDropdown(openDropdown === "city" ? null : "city")}
-              onClose={() => setOpenDropdown(null)}
-            />
-
-            {/* Category Filter */}
-            <MultiSelectDropdown
-              label="Category"
-              options={catOptions}
-              selected={selCategories}
-              onChange={setSelCategories}
-              open={openDropdown === "category"}
-              onToggle={() => setOpenDropdown(openDropdown === "category" ? null : "category")}
-              onClose={() => setOpenDropdown(null)}
-            />
-
-            {/* Status Filter */}
-            <MultiSelectDropdown
-              label="Status"
-              options={statusOptions}
-              selected={selStatuses}
-              onChange={setSelStatuses}
-              open={openDropdown === "status"}
-              onToggle={() => setOpenDropdown(openDropdown === "status" ? null : "status")}
-              onClose={() => setOpenDropdown(null)}
-            />
-
-            {/* SKU Filter */}
-            <MultiSelectDropdown
-              label="SKU"
-              options={skuOptions}
-              selected={selSkus}
-              onChange={setSelSkus}
-              open={openDropdown === "sku"}
-              onToggle={() => setOpenDropdown(openDropdown === "sku" ? null : "sku")}
-              onClose={() => setOpenDropdown(null)}
-            />
-
-            {/* SKU Search */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search SKU..."
-                value={skuSearch}
-                onChange={(e) => setSkuSearch(e.target.value)}
-                className="px-3 py-1.5 pl-7 text-xs rounded-lg border border-slate-700/60 bg-slate-900/80 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-36 sm:w-44 shadow-sm"
-              />
-              <svg className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              {skuSearch && (
+              {/* Mode Switcher */}
+              <div className="bg-slate-100 p-0.5 rounded-xl border border-slate-200 flex items-center shadow-inner text-xs">
                 <button
-                  onClick={() => setSkuSearch("")}
-                  className="absolute right-2 top-2 text-slate-400 hover:text-slate-200"
+                  onClick={() => setDateMode("synced")}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer ${
+                    dateMode === "synced"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  title="Compare the same days of both months (e.g. 1st–24th)"
                 >
-                  ×
+                  <span>⚡</span>
+                  <span>Like-for-Like Days</span>
                 </button>
+                <button
+                  onClick={() => setDateMode("custom")}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer ${
+                    dateMode === "custom"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  title="Set separate calendar dates for each month"
+                >
+                  <span>⚙️</span>
+                  <span>Separate Dates</span>
+                </button>
+              </div>
+
+              {/* Synced Day Range Controls */}
+              {dateMode === "synced" && (
+                <div className="flex flex-wrap items-center gap-1.5 bg-indigo-50/70 p-1.5 rounded-xl border border-indigo-200">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-900 px-1">
+                    Presets:
+                  </span>
+                  {[
+                    { key: "full", label: "Full Month" },
+                    { key: "mtd", label: `MTD (1–${maxDayB})` },
+                    { key: "cycle1", label: "Cycle 1 (1–10)" },
+                    { key: "cycle2", label: "Cycle 2 (11–20)" },
+                    { key: "cycle3", label: "Cycle 3 (21–31)" },
+                    { key: "7d", label: "Last 7D" },
+                    { key: "14d", label: "Last 14D" },
+                  ].map((p) => (
+                    <button
+                      key={p.key}
+                      onClick={() => applySyncedPreset(p.key as any)}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition cursor-pointer ${
+                        activePreset === p.key
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "bg-white text-indigo-700 hover:bg-indigo-100 border border-indigo-200"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+
+                  {/* Day range selectors */}
+                  <div className="flex items-center gap-1 ml-2 pl-2 border-l border-indigo-200 text-xs">
+                    <span className="text-[11px] font-bold text-indigo-900">Day:</span>
+                    <select
+                      value={dayFrom}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setDayFrom(val);
+                        setActivePreset("custom-days");
+                      }}
+                      className="bg-white border border-indigo-300 rounded-lg px-2 py-0.5 text-xs font-bold text-indigo-900 focus:outline-none"
+                    >
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                        <option key={`from-${d}`} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-indigo-400 font-bold text-xs">→</span>
+                    <select
+                      value={dayTo}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setDayTo(val);
+                        setActivePreset("custom-days");
+                      }}
+                      className="bg-white border border-indigo-300 rounded-lg px-2 py-0.5 text-xs font-bold text-indigo-900 focus:outline-none"
+                    >
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                        <option key={`to-${d}`} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Date Pickers for Month A and Month B */}
+              {dateMode === "custom" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Month A Date Range */}
+                  <div className="flex items-center flex-wrap gap-1.5 bg-sky-50 px-2.5 py-1 rounded-xl border border-sky-200">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1 shrink-0">
+                      <span className="w-2 h-2 rounded-full bg-sky-500 inline-block" />
+                      {monthA || "Month A"}:
+                    </span>
+                    <input
+                      type="date"
+                      value={aFrom}
+                      onChange={(e) => setAFrom(e.target.value)}
+                      min={monthBoundsA.min || undefined}
+                      max={monthBoundsA.max || undefined}
+                      className="bg-white border border-sky-300 rounded-lg px-2 py-0.5 text-xs text-sky-900 focus:outline-none focus:border-sky-500"
+                    />
+                    <span className="text-sky-500 text-xs font-bold">→</span>
+                    <input
+                      type="date"
+                      value={aTo}
+                      onChange={(e) => setATo(e.target.value)}
+                      min={monthBoundsA.min || undefined}
+                      max={monthBoundsA.max || undefined}
+                      className="bg-white border border-sky-300 rounded-lg px-2 py-0.5 text-xs text-sky-900 focus:outline-none focus:border-sky-500"
+                    />
+                    <div className="flex items-center gap-1">
+                      {DATE_PRESETS.map((p) => (
+                        <button
+                          key={p.label}
+                          onClick={() => applyPresetA(p.days)}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 hover:bg-sky-600 hover:text-white text-sky-800 border border-sky-200 transition cursor-pointer"
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    {(aFrom || aTo) && (
+                      <button onClick={() => { setAFrom(""); setATo(""); }} className="text-sky-600 hover:text-rose-600 text-xs font-bold px-1 transition cursor-pointer" title="Clear Month A Date">
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Month B Date Range */}
+                  <div className="flex items-center flex-wrap gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1 shrink-0">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                      {monthB || "Month B"}:
+                    </span>
+                    <input
+                      type="date"
+                      value={bFrom}
+                      onChange={(e) => setBFrom(e.target.value)}
+                      min={monthBoundsB.min || undefined}
+                      max={monthBoundsB.max || undefined}
+                      className="bg-white border border-emerald-300 rounded-lg px-2 py-0.5 text-xs text-emerald-900 focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="text-emerald-500 text-xs font-bold">→</span>
+                    <input
+                      type="date"
+                      value={bTo}
+                      onChange={(e) => setBTo(e.target.value)}
+                      min={monthBoundsB.min || undefined}
+                      max={monthBoundsB.max || undefined}
+                      className="bg-white border border-emerald-300 rounded-lg px-2 py-0.5 text-xs text-emerald-900 focus:outline-none focus:border-emerald-500"
+                    />
+                    <div className="flex items-center gap-1">
+                      {DATE_PRESETS.map((p) => (
+                        <button
+                          key={p.label}
+                          onClick={() => applyPresetB(p.days)}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 hover:bg-emerald-600 hover:text-white text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    {(bFrom || bTo) && (
+                      <button onClick={() => { setBFrom(""); setBTo(""); }} className="text-emerald-600 hover:text-rose-600 text-xs font-bold px-1 transition cursor-pointer" title="Clear Month B Date">
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Sync buttons between months in custom mode */}
+                  <div className="flex items-center gap-1 text-xs">
+                    <button
+                      onClick={syncCustomFromAtoB}
+                      disabled={!aFrom && !aTo}
+                      className="px-2 py-1 rounded-lg font-bold bg-slate-100 hover:bg-sky-100 text-sky-800 border border-slate-200 transition disabled:opacity-40 cursor-pointer"
+                      title={`Copy ${monthA} day span to ${monthB}`}
+                    >
+                      ⚡ Sync {monthA ? monthA.slice(0, 3) : "A"} → {monthB ? monthB.slice(0, 3) : "B"}
+                    </button>
+                    <button
+                      onClick={syncCustomFromBtoA}
+                      disabled={!bFrom && !bTo}
+                      className="px-2 py-1 rounded-lg font-bold bg-slate-100 hover:bg-emerald-100 text-emerald-800 border border-slate-200 transition disabled:opacity-40 cursor-pointer"
+                      title={`Copy ${monthB} day span to ${monthA}`}
+                    >
+                      ⚡ Sync {monthB ? monthB.slice(0, 3) : "B"} → {monthA ? monthA.slice(0, 3) : "A"}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
+
+            {/* Active Date Range Indicator Badge */}
+            {(rangeLabelA || rangeLabelB) && (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs font-bold">
+                <span>📊</span>
+                <span>Active Period:</span>
+                <span className="text-sky-700">{monthA} ({rangeLabelA})</span>
+                <span className="text-slate-400">vs</span>
+                <span className="text-emerald-700">{monthB} ({rangeLabelB})</span>
+              </div>
+            )}
           </div>
 
-          {/* Reset Filters */}
-          {(selTrades.length > 0 || selRegions.length > 0 || selCities.length > 0 || selCategories.length > 0 || selStatuses.length > 0 || selSkus.length > 0 || skuSearch) && (
-            <button
-              onClick={() => {
-                setSelTrades([]);
-                setSelRegions([]);
-                setSelCities([]);
-                setSelCategories([]);
-                setSelStatuses([]);
-                setSelSkus([]);
-                setSkuSearch("");
-              }}
-              className="text-xs text-rose-400 hover:text-rose-300 font-semibold flex items-center gap-1 transition px-2 py-1 rounded bg-rose-950/40 border border-rose-800/40"
-            >
-              Reset All Filters
-            </button>
-          )}
+          {/* Bottom Row: Dimension Filters + SKU Search + Reset */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5 mr-1">
+                <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Filters:
+              </span>
+
+              {/* Trade Filter */}
+              <MultiSelectDropdown
+                label="Trade"
+                options={tradeOptions}
+                selected={selTrades}
+                onChange={setSelTrades}
+                open={openDropdown === "trade"}
+                onToggle={() => setOpenDropdown(openDropdown === "trade" ? null : "trade")}
+                onClose={() => setOpenDropdown(null)}
+              />
+
+              {/* Region Filter */}
+              <MultiSelectDropdown
+                label="Region"
+                options={regionOptions}
+                selected={selRegions}
+                onChange={setSelRegions}
+                open={openDropdown === "region"}
+                onToggle={() => setOpenDropdown(openDropdown === "region" ? null : "region")}
+                onClose={() => setOpenDropdown(null)}
+              />
+
+              {/* City Filter */}
+              <MultiSelectDropdown
+                label="City"
+                options={cityOptions}
+                selected={selCities}
+                onChange={setSelCities}
+                open={openDropdown === "city"}
+                onToggle={() => setOpenDropdown(openDropdown === "city" ? null : "city")}
+                onClose={() => setOpenDropdown(null)}
+              />
+
+              {/* Category Filter */}
+              <MultiSelectDropdown
+                label="Category"
+                options={catOptions}
+                selected={selCategories}
+                onChange={setSelCategories}
+                open={openDropdown === "category"}
+                onToggle={() => setOpenDropdown(openDropdown === "category" ? null : "category")}
+                onClose={() => setOpenDropdown(null)}
+              />
+
+              {/* Status Filter */}
+              <MultiSelectDropdown
+                label="Status"
+                options={statusOptions}
+                selected={selStatuses}
+                onChange={setSelStatuses}
+                open={openDropdown === "status"}
+                onToggle={() => setOpenDropdown(openDropdown === "status" ? null : "status")}
+                onClose={() => setOpenDropdown(null)}
+              />
+
+              {/* SKU Search */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search SKU..."
+                  value={skuSearch}
+                  onChange={(e) => setSkuSearch(e.target.value)}
+                  className="px-3 py-1.5 pl-7 text-xs rounded-lg border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 w-36 sm:w-44 shadow-xs"
+                />
+                <svg className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {skuSearch && (
+                  <button
+                    onClick={() => setSkuSearch("")}
+                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Reset Filters */}
+            {(selTrades.length > 0 ||
+              selRegions.length > 0 ||
+              selCities.length > 0 ||
+              selCategories.length > 0 ||
+              selStatuses.length > 0 ||
+              skuSearch ||
+              aFrom ||
+              aTo ||
+              bFrom ||
+              bTo ||
+              activePreset !== "full" ||
+              dayFrom !== 1 ||
+              dayTo !== 31) && (
+              <button
+                onClick={() => {
+                  setSelTrades([]);
+                  setSelRegions([]);
+                  setSelCities([]);
+                  setSelCategories([]);
+                  setSelStatuses([]);
+                  setSkuSearch("");
+                  setDateMode("synced");
+                  setActivePreset("full");
+                  setDayFrom(1);
+                  setDayTo(31);
+                  setAFrom("");
+                  setATo("");
+                  setBFrom("");
+                  setBTo("");
+                }}
+                className="text-xs text-rose-700 hover:text-rose-800 font-bold flex items-center gap-1 transition px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 cursor-pointer"
+              >
+                Reset All Filters
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1636,40 +1667,39 @@ export default function MonthComparePage() {
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 mt-6 relative z-10">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Card 1: PO Demand */}
-          <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-4 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-indigo-500/40 transition">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition" />
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden group hover:border-indigo-300 transition">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition" />
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total PO Demand</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-white/5">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total PO Demand</span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                 {unitLabel}
               </span>
             </div>
 
             <div className="flex items-baseline justify-between mt-1">
               <div>
-                <span className="text-[11px] text-sky-400 font-semibold block truncate">
-                  {monthA} (Day {dayFromA}–{dayToA})
+                <span className="text-[11px] text-sky-700 font-bold block">
+                  {monthA} {rangeLabelA ? `(${rangeLabelA})` : ""}
                 </span>
-                <span className="text-lg sm:text-xl font-black text-slate-200">
+                <span className="text-lg sm:text-xl font-black text-slate-900">
                   {unitSymbol} {L(statsA.po)}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-emerald-400 font-semibold block truncate">
-                  {monthB} (Day {dayFromB}–{dayToB})
+                <span className="text-[11px] text-emerald-700 font-bold block">
+                  {monthB} {rangeLabelB ? `(${rangeLabelB})` : ""}
                 </span>
-                <span className="text-lg sm:text-xl font-black text-white">
+                <span className="text-lg sm:text-xl font-black text-slate-900">
                   {unitSymbol} {L(statsB.po)}
                 </span>
               </div>
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-medium">Period Variance:</span>
+            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">MoM Variance:</span>
               <span
-                className={`font-bold flex items-center gap-1 ${
-                  diffPo >= 0 ? "text-emerald-400" : "text-rose-400"
-                }`}
+                className={`font-bold flex items-center gap-1 ${diffPo >= 0 ? "text-emerald-700" : "text-rose-600"
+                  }`}
               >
                 {diffPo >= 0 ? "▲ +" : "▼ "}
                 {unitSymbol} {L(Math.abs(diffPo))} ({diffPoPct >= 0 ? "+" : ""}
@@ -1679,40 +1709,39 @@ export default function MonthComparePage() {
           </div>
 
           {/* Card 2: Supplied GRN */}
-          <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-4 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-emerald-500/40 transition">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition" />
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden group hover:border-emerald-300 transition">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition" />
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Supplied Value (GRN)</span>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-white/5">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Supplied Value (GRN)</span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                 {unitLabel}
               </span>
             </div>
 
             <div className="flex items-baseline justify-between mt-1">
               <div>
-                <span className="text-[11px] text-sky-400 font-semibold block truncate">
-                  {monthA} (Day {dayFromA}–{dayToA})
+                <span className="text-[11px] text-sky-700 font-bold block">
+                  {monthA} {rangeLabelA ? `(${rangeLabelA})` : ""}
                 </span>
-                <span className="text-lg sm:text-xl font-black text-slate-200">
+                <span className="text-lg sm:text-xl font-black text-slate-900">
                   {unitSymbol} {L(statsA.grn)}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-emerald-400 font-semibold block truncate">
-                  {monthB} (Day {dayFromB}–{dayToB})
+                <span className="text-[11px] text-emerald-700 font-bold block">
+                  {monthB} {rangeLabelB ? `(${rangeLabelB})` : ""}
                 </span>
-                <span className="text-lg sm:text-xl font-black text-white">
+                <span className="text-lg sm:text-xl font-black text-slate-900">
                   {unitSymbol} {L(statsB.grn)}
                 </span>
               </div>
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-medium">Supply Growth:</span>
+            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">Supply Growth:</span>
               <span
-                className={`font-bold flex items-center gap-1 ${
-                  diffGrn >= 0 ? "text-emerald-400" : "text-rose-400"
-                }`}
+                className={`font-bold flex items-center gap-1 ${diffGrn >= 0 ? "text-emerald-700" : "text-rose-600"
+                  }`}
               >
                 {diffGrn >= 0 ? "▲ +" : "▼ "}
                 {unitSymbol} {L(Math.abs(diffGrn))} ({diffGrnPct >= 0 ? "+" : ""}
@@ -1722,27 +1751,27 @@ export default function MonthComparePage() {
           </div>
 
           {/* Card 3: Overall Fill Rate % */}
-          <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-4 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-amber-500/40 transition">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition" />
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden group hover:border-amber-300 transition">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition" />
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Fill Rate (FR %)</span>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Fill Rate (FR %)</span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                 Target 90%
               </span>
             </div>
 
             <div className="flex items-baseline justify-between mt-1">
               <div>
-                <span className="text-[11px] text-sky-400 font-semibold block truncate">
-                  {monthA} (Day {dayFromA}–{dayToA})
+                <span className="text-[11px] text-sky-700 font-bold block">
+                  {monthA} {rangeLabelA ? `(${rangeLabelA})` : ""}
                 </span>
                 <span className={`text-lg sm:text-xl font-black ${frColor(statsA.fr)}`}>
                   {statsA.fr.toFixed(1)}%
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-emerald-400 font-semibold block truncate">
-                  {monthB} (Day {dayFromB}–{dayToB})
+                <span className="text-[11px] text-emerald-700 font-bold block">
+                  {monthB} {rangeLabelB ? `(${rangeLabelB})` : ""}
                 </span>
                 <span className={`text-lg sm:text-xl font-black ${frColor(statsB.fr)}`}>
                   {statsB.fr.toFixed(1)}%
@@ -1750,14 +1779,13 @@ export default function MonthComparePage() {
               </div>
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-medium">FR Change:</span>
+            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">FR Change:</span>
               <span
-                className={`font-bold px-2 py-0.5 rounded-full text-xs ${
-                  diffFr >= 0
-                    ? "bg-emerald-950/80 text-emerald-300 border border-emerald-700/50"
-                    : "bg-rose-950/80 text-rose-300 border border-rose-700/50"
-                }`}
+                className={`font-bold px-2.5 py-0.5 rounded-full text-xs ${diffFr >= 0
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-300"
+                    : "bg-rose-50 text-rose-800 border border-rose-300"
+                  }`}
               >
                 {diffFr >= 0 ? "▲ +" : "▼ "}
                 {diffFr.toFixed(1)}% pts
@@ -1766,40 +1794,39 @@ export default function MonthComparePage() {
           </div>
 
           {/* Card 4: Unsupplied Gap & Orders */}
-          <div className="bg-slate-900/70 border border-white/10 rounded-2xl p-4 shadow-xl backdrop-blur-md relative overflow-hidden group hover:border-rose-500/40 transition">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/20 transition" />
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden group hover:border-rose-300 transition">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-full blur-2xl group-hover:bg-rose-500/10 transition" />
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Unsupplied Gap</span>
-              <span className="text-xs font-semibold text-slate-400">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Unsupplied Gap</span>
+              <span className="text-xs font-bold text-slate-500">
                 {statsB.poCount.size} POs ({diffPoCount >= 0 ? `+${diffPoCount}` : diffPoCount})
               </span>
             </div>
 
             <div className="flex items-baseline justify-between mt-1">
               <div>
-                <span className="text-[11px] text-sky-400 font-semibold block truncate">
-                  {monthA} Gap
+                <span className="text-[11px] text-sky-700 font-bold block">
+                  {monthA} Gap {rangeLabelA ? `(${rangeLabelA})` : ""}
                 </span>
-                <span className="text-lg sm:text-xl font-black text-rose-300">
+                <span className="text-lg sm:text-xl font-black text-rose-600">
                   {unitSymbol} {L(statsA.gap)}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-emerald-400 font-semibold block truncate">
-                  {monthB} Gap
+                <span className="text-[11px] text-emerald-700 font-bold block">
+                  {monthB} Gap {rangeLabelB ? `(${rangeLabelB})` : ""}
                 </span>
-                <span className="text-lg sm:text-xl font-black text-rose-400">
+                <span className="text-lg sm:text-xl font-black text-rose-600">
                   {unitSymbol} {L(statsB.gap)}
                 </span>
               </div>
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-medium">Gap Delta:</span>
+            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">Gap Delta:</span>
               <span
-                className={`font-bold ${
-                  diffGap <= 0 ? "text-emerald-400" : "text-rose-400"
-                }`}
+                className={`font-bold ${diffGap <= 0 ? "text-emerald-700" : "text-rose-600"
+                  }`}
               >
                 {diffGap <= 0 ? "▼ Reduced by " : "▲ Increased by "}
                 {unitSymbol} {L(Math.abs(diffGap))}
@@ -1812,46 +1839,46 @@ export default function MonthComparePage() {
       {/* ── KEY INSIGHTS STRIP ── */}
       {topInsights && (
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 mt-4">
-          <div className="bg-gradient-to-r from-indigo-950/60 via-slate-900/80 to-slate-900/60 border border-indigo-500/20 rounded-2xl p-3 shadow-lg flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="bg-white border border-indigo-100 rounded-2xl p-3 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2">
               <span className="text-base">💡</span>
-              <span className="font-bold text-indigo-300 uppercase tracking-wide">
-                Key Period Movers ({monthA} → {monthB}):
+              <span className="font-bold text-indigo-900 uppercase tracking-wide">
+                Key MoM Movers ({monthA} → {monthB}):
               </span>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
               {topInsights.topGainer && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-700/40 text-emerald-200">
-                  <span className="text-emerald-400 font-bold">Top Gainer:</span>
-                  <span className="font-semibold text-white">{topInsights.topGainer.name}</span>
-                  <span className="text-emerald-400 font-extrabold">+{topInsights.topGainer.diffFr.toFixed(1)}% FR</span>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800">
+                  <span className="text-emerald-800 font-bold">Top Gainer:</span>
+                  <span className="font-extrabold text-slate-900">{topInsights.topGainer.name}</span>
+                  <span className="text-emerald-700 font-black">+{topInsights.topGainer.diffFr.toFixed(1)}% FR</span>
                 </div>
               )}
 
               {topInsights.topDropper && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-950/60 border border-rose-700/40 text-rose-200">
-                  <span className="text-rose-400 font-bold">Top Drop:</span>
-                  <span className="font-semibold text-white">{topInsights.topDropper.name}</span>
-                  <span className="text-rose-400 font-extrabold">{topInsights.topDropper.diffFr.toFixed(1)}% FR</span>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-800">
+                  <span className="text-rose-800 font-bold">Top Drop:</span>
+                  <span className="font-extrabold text-slate-900">{topInsights.topDropper.name}</span>
+                  <span className="text-rose-700 font-black">{topInsights.topDropper.diffFr.toFixed(1)}% FR</span>
                 </div>
               )}
 
               {topInsights.topDemand && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-950/60 border border-indigo-700/40 text-indigo-200">
-                  <span className="text-indigo-400 font-bold">Demand Leader:</span>
-                  <span className="font-semibold text-white">{topInsights.topDemand.name}</span>
-                  <span className="text-indigo-300 font-extrabold">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800">
+                  <span className="text-indigo-800 font-bold">Demand Leader:</span>
+                  <span className="font-extrabold text-slate-900">{topInsights.topDemand.name}</span>
+                  <span className="text-indigo-700 font-black">
                     {topInsights.topDemand.diffPo >= 0 ? "+" : ""}{unitSymbol} {L(topInsights.topDemand.diffPo)}
                   </span>
                 </div>
               )}
 
               {topInsights.topGap && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-950/60 border border-amber-700/40 text-amber-200">
-                  <span className="text-amber-400 font-bold">Max Gap in {monthB}:</span>
-                  <span className="font-semibold text-white">{topInsights.topGap.name}</span>
-                  <span className="text-amber-300 font-extrabold">{unitSymbol} {L(topInsights.topGap.bGap)}</span>
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+                  <span className="text-amber-800 font-bold">Max Gap in {monthB}:</span>
+                  <span className="font-extrabold text-slate-900">{topInsights.topGap.name}</span>
+                  <span className="text-amber-700 font-black">{unitSymbol} {L(topInsights.topGap.bGap)}</span>
                 </div>
               )}
             </div>
@@ -1861,15 +1888,14 @@ export default function MonthComparePage() {
 
       {/* ── MAIN TABS NAVIGATOR ── */}
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 mt-6">
-        <div className="border-b border-white/10 flex items-center justify-between flex-wrap gap-3 pb-2">
+        <div className="border-b border-slate-200 flex items-center justify-between flex-wrap gap-3 pb-2">
           <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab("deep-dive")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${
-                activeTab === "deep-dive"
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${activeTab === "deep-dive"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                }`}
             >
               <span>📊</span>
               Dimension Comparator
@@ -1877,11 +1903,10 @@ export default function MonthComparePage() {
 
             <button
               onClick={() => setActiveTab("sku-compare")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${
-                activeTab === "sku-compare"
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${activeTab === "sku-compare"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                }`}
             >
               <span>📦</span>
               SKU-Level Movers
@@ -1889,11 +1914,10 @@ export default function MonthComparePage() {
 
             <button
               onClick={() => setActiveTab("matrix")}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${
-                activeTab === "matrix"
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition ${activeTab === "matrix"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                }`}
             >
               <span>🗓️</span>
               Multi-Month Matrix Heatmap
@@ -1902,17 +1926,16 @@ export default function MonthComparePage() {
 
           {/* Dimension Selector when in Deep Dive Tab */}
           {activeTab === "deep-dive" && (
-            <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-white/10">
-              <span className="text-xs text-slate-400 px-2 font-medium">Group by:</span>
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <span className="text-xs text-slate-500 px-2 font-bold">Group by:</span>
               {(["trade", "category", "city", "depo", "region"] as DimensionKey[]).map((dim) => (
                 <button
                   key={dim}
                   onClick={() => setSelectedDim(dim)}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg capitalize transition ${
-                    selectedDim === dim
-                      ? "bg-indigo-500/30 text-indigo-200 border border-indigo-500/40"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg capitalize transition ${selectedDim === dim
+                      ? "bg-white text-indigo-700 shadow-xs border border-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                    }`}
                 >
                   {dim}
                 </button>
@@ -1922,18 +1945,18 @@ export default function MonthComparePage() {
 
           {/* Matrix Dimension Selector */}
           {activeTab === "matrix" && (
-            <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-white/10">
-              <span className="text-xs text-slate-400 px-2 font-medium">Matrix Rows:</span>
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <span className="text-xs text-slate-500 px-2 font-bold">Matrix Rows:</span>
               {(["trade", "category", "city", "depo", "region"] as DimensionKey[]).map((dim) => (
                 <button
                   key={`matrix-${dim}`}
                   onClick={() => setMatrixDim(dim)}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg capitalize transition ${
-                    matrixDim === dim
-                      ? "bg-indigo-500/30 text-indigo-200 border border-indigo-500/40"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg capitalize transition ${matrixDim === dim
+                      ? "bg-white text-indigo-700 shadow-xs border border-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                    }`}
                 >
+
                   {dim}
                 </button>
               ))}
@@ -1945,25 +1968,25 @@ export default function MonthComparePage() {
       {/* ── TAB CONTENT 1: DIMENSION COMPARATOR ── */}
       {activeTab === "deep-dive" && (
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 mt-4">
-          <div className="bg-slate-900/70 border border-white/10 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-md">
-            <div className="px-5 py-3.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-3 bg-slate-950/40">
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-200 capitalize">
+                <span className="font-bold text-slate-900 capitalize">
                   {selectedDim}-wise Side-by-Side Comparison
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-500">
                   ({dimensionData.length} records)
                 </span>
               </div>
 
-              <div className="text-xs text-slate-400 flex items-center gap-4">
+              <div className="text-xs text-slate-600 flex items-center gap-4">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-sky-400" />
-                  {monthA} (Day {dayFromA}–{dayToA})
+                  <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                  <span className="font-semibold text-slate-700">{monthA}</span> (Base)
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                  {monthB} (Day {dayFromB}–{dayToB})
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <span className="font-semibold text-slate-700">{monthB}</span> (Compare)
                 </span>
               </div>
             </div>
@@ -1972,10 +1995,10 @@ export default function MonthComparePage() {
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-950/80 border-b border-white/10 text-slate-300 font-bold uppercase tracking-wider text-[11px]">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider text-[11px]">
                     <th
                       onClick={() => handleSort("name")}
-                      className="py-3 px-4 cursor-pointer hover:text-white transition"
+                      className="py-3 px-4 cursor-pointer hover:text-slate-900 transition"
                     >
                       <div className="flex items-center gap-1">
                         <span className="capitalize">{selectedDim} Name</span>
@@ -1986,59 +2009,71 @@ export default function MonthComparePage() {
                     {/* Month A group */}
                     <th
                       onClick={() => handleSort("aPo")}
-                      className="py-3 px-3 text-right bg-sky-950/30 text-sky-300 cursor-pointer hover:text-white transition"
+                      className="py-3 px-3 text-right bg-sky-50 text-sky-900 cursor-pointer hover:text-sky-950 transition border-r border-sky-100"
                     >
                       <div>{monthA} PO ({unitSymbol})</div>
-                      <div className="text-[9px] text-sky-400/80 font-normal">Day {dayFromA}–{dayToA} ({formatDateShort(dateFromA)}–{formatDateShort(dateToA)})</div>
+                      {rangeLabelA && (
+                        <div className="text-[9px] font-normal text-sky-700 font-sans">({rangeLabelA})</div>
+                      )}
                     </th>
-                    <th className="py-3 px-3 text-right bg-sky-950/30 text-sky-300">
+                    <th className="py-3 px-3 text-right bg-sky-50 text-sky-900 border-r border-sky-100">
                       <div>{monthA} GRN ({unitSymbol})</div>
-                      <div className="text-[9px] text-sky-400/80 font-normal">Day {dayFromA}–{dayToA}</div>
+                      {rangeLabelA && (
+                        <div className="text-[9px] font-normal text-sky-700 font-sans">({rangeLabelA})</div>
+                      )}
                     </th>
                     <th
                       onClick={() => handleSort("aFr")}
-                      className="py-3 px-3 text-center bg-sky-950/30 text-sky-300 cursor-pointer hover:text-white transition border-r border-white/10"
+                      className="py-3 px-3 text-center bg-sky-50 text-sky-900 cursor-pointer hover:text-sky-950 transition border-r border-slate-200"
                     >
                       <div>{monthA} FR %</div>
-                      <div className="text-[9px] text-sky-400/80 font-normal">Day {dayFromA}–{dayToA}</div>
+                      {rangeLabelA && (
+                        <div className="text-[9px] font-normal text-sky-700 font-sans">({rangeLabelA})</div>
+                      )}
                     </th>
 
                     {/* Month B group */}
                     <th
                       onClick={() => handleSort("bPo")}
-                      className="py-3 px-3 text-right bg-emerald-950/30 text-emerald-300 cursor-pointer hover:text-white transition"
+                      className="py-3 px-3 text-right bg-emerald-50 text-emerald-900 cursor-pointer hover:text-emerald-950 transition border-r border-emerald-100"
                     >
                       <div>{monthB} PO ({unitSymbol})</div>
-                      <div className="text-[9px] text-emerald-400/80 font-normal">Day {dayFromB}–{dayToB} ({formatDateShort(dateFromB)}–{formatDateShort(dateToB)})</div>
+                      {rangeLabelB && (
+                        <div className="text-[9px] font-normal text-emerald-700 font-sans">({rangeLabelB})</div>
+                      )}
                     </th>
-                    <th className="py-3 px-3 text-right bg-emerald-950/30 text-emerald-300">
+                    <th className="py-3 px-3 text-right bg-emerald-50 text-emerald-900 border-r border-emerald-100">
                       <div>{monthB} GRN ({unitSymbol})</div>
-                      <div className="text-[9px] text-emerald-400/80 font-normal">Day {dayFromB}–{dayToB}</div>
+                      {rangeLabelB && (
+                        <div className="text-[9px] font-normal text-emerald-700 font-sans">({rangeLabelB})</div>
+                      )}
                     </th>
                     <th
                       onClick={() => handleSort("bFr")}
-                      className="py-3 px-3 text-center bg-emerald-950/30 text-emerald-300 cursor-pointer hover:text-white transition border-r border-white/10"
+                      className="py-3 px-3 text-center bg-emerald-50 text-emerald-900 cursor-pointer hover:text-emerald-950 transition border-r border-slate-200"
                     >
                       <div>{monthB} FR %</div>
-                      <div className="text-[9px] text-emerald-400/80 font-normal">Day {dayFromB}–{dayToB}</div>
+                      {rangeLabelB && (
+                        <div className="text-[9px] font-normal text-emerald-700 font-sans">({rangeLabelB})</div>
+                      )}
                     </th>
 
                     {/* Variance group */}
                     <th
                       onClick={() => handleSort("diffPo")}
-                      className="py-3 px-3 text-right cursor-pointer hover:text-white transition"
+                      className="py-3 px-3 text-right cursor-pointer hover:text-slate-900 transition"
                     >
                       Δ PO Demand
                     </th>
                     <th
                       onClick={() => handleSort("diffFr")}
-                      className="py-3 px-3 text-center cursor-pointer hover:text-white transition"
+                      className="py-3 px-3 text-center cursor-pointer hover:text-slate-900 transition"
                     >
                       Δ FR % (pts)
                     </th>
                     <th
                       onClick={() => handleSort("bGap")}
-                      className="py-3 px-3 text-right cursor-pointer hover:text-white transition"
+                      className="py-3 px-3 text-right cursor-pointer hover:text-slate-900 transition"
                     >
                       {monthB} Gap
                     </th>
@@ -2048,7 +2083,7 @@ export default function MonthComparePage() {
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-white/5 font-medium">
+                <tbody className="divide-y divide-slate-100 font-medium">
                   {dimensionData.length === 0 ? (
                     <tr>
                       <td colSpan={11} className="py-12 text-center text-slate-500">
@@ -2064,13 +2099,13 @@ export default function MonthComparePage() {
                       return (
                         <tr
                           key={row.key}
-                          className="hover:bg-white/[0.03] transition-colors group"
+                          className="hover:bg-slate-50/80 transition-colors group"
                         >
-                          <td className="py-3 px-4 text-slate-200 font-bold">
+                          <td className="py-3 px-4 text-slate-900 font-bold">
                             <div className="flex flex-col">
                               <span>{row.name}</span>
                               {row.subName && (
-                                <span className="text-[10px] text-slate-400 font-normal">
+                                <span className="text-[10px] text-slate-500 font-normal">
                                   {row.subName}
                                 </span>
                               )}
@@ -2078,24 +2113,24 @@ export default function MonthComparePage() {
                           </td>
 
                           {/* Month A Values */}
-                          <td className="py-3 px-3 text-right font-mono bg-sky-950/10 text-slate-300">
+                          <td className="py-3 px-3 text-right font-mono bg-sky-50/40 text-slate-700">
                             {L(row.aPo)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono bg-sky-950/10 text-slate-300">
+                          <td className="py-3 px-3 text-right font-mono bg-sky-50/40 text-slate-700">
                             {L(row.aGrn)}
                           </td>
-                          <td className="py-3 px-3 text-center bg-sky-950/10 border-r border-white/10">
+                          <td className="py-3 px-3 text-center bg-sky-50/40 border-r border-slate-200">
                             <span className={frPill(row.aFr)}>{row.aFr.toFixed(1)}%</span>
                           </td>
 
                           {/* Month B Values */}
-                          <td className="py-3 px-3 text-right font-mono bg-emerald-950/10 text-white font-bold">
+                          <td className="py-3 px-3 text-right font-mono bg-emerald-50/40 text-slate-900 font-bold">
                             {L(row.bPo)}
                           </td>
-                          <td className="py-3 px-3 text-right font-mono bg-emerald-950/10 text-slate-200">
+                          <td className="py-3 px-3 text-right font-mono bg-emerald-50/40 text-slate-800">
                             {L(row.bGrn)}
                           </td>
-                          <td className="py-3 px-3 text-center bg-emerald-950/10 border-r border-white/10">
+                          <td className="py-3 px-3 text-center bg-emerald-50/40 border-r border-slate-200">
                             <span className={frPill(row.bFr)}>{row.bFr.toFixed(1)}%</span>
                           </td>
 
@@ -2103,12 +2138,12 @@ export default function MonthComparePage() {
                           <td className="py-3 px-3 text-right font-mono">
                             <span
                               className={
-                                row.diffPo >= 0 ? "text-emerald-400" : "text-rose-400"
+                                row.diffPo >= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"
                               }
                             >
                               {row.diffPo >= 0 ? "+" : ""}
                               {L(row.diffPo)}
-                              <span className="text-[10px] text-slate-400 ml-1">
+                              <span className="text-[10px] text-slate-500 ml-1 font-normal">
                                 ({row.diffPoPct >= 0 ? "+" : ""}
                                 {row.diffPoPct.toFixed(0)}%)
                               </span>
@@ -2117,18 +2152,17 @@ export default function MonthComparePage() {
 
                           <td className="py-3 px-3 text-center">
                             <span
-                              className={`px-2 py-0.5 rounded text-xs font-bold ${
-                                row.diffFr >= 0
-                                  ? "bg-emerald-950/70 text-emerald-300 border border-emerald-700/40"
-                                  : "bg-rose-950/70 text-rose-300 border border-rose-700/40"
-                              }`}
+                              className={`px-2 py-0.5 rounded text-xs font-bold ${row.diffFr >= 0
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-300"
+                                  : "bg-rose-50 text-rose-700 border border-rose-300"
+                                }`}
                             >
                               {row.diffFr >= 0 ? "▲ +" : "▼ "}
                               {row.diffFr.toFixed(1)}%
                             </span>
                           </td>
 
-                          <td className="py-3 px-3 text-right font-mono text-rose-300">
+                          <td className="py-3 px-3 text-right font-mono text-rose-600 font-bold">
                             {row.bGap > 0 ? L(row.bGap) : "—"}
                           </td>
 
@@ -2136,27 +2170,27 @@ export default function MonthComparePage() {
                           <td className="py-3 px-4">
                             <div className="space-y-1.5 w-44">
                               <div className="flex items-center gap-1.5 text-[10px]">
-                                <span className="w-5 text-sky-400 shrink-0">{monthA.slice(0, 3)}</span>
-                                <div className="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                <span className="w-5 text-sky-600 font-semibold shrink-0">{monthA.slice(0, 3)}</span>
+                                <div className="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden">
                                   <div
-                                    className="bg-sky-400 h-full rounded-full transition-all"
+                                    className="bg-sky-500 h-full rounded-full transition-all"
                                     style={{ width: `${barA}%` }}
                                   />
                                 </div>
-                                <span className="font-mono text-slate-400 w-8 text-right">
+                                <span className="font-mono text-slate-500 w-8 text-right">
                                   {row.aFr.toFixed(0)}%
                                 </span>
                               </div>
 
                               <div className="flex items-center gap-1.5 text-[10px]">
-                                <span className="w-5 text-emerald-400 shrink-0">{monthB.slice(0, 3)}</span>
-                                <div className="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                <span className="w-5 text-emerald-600 font-semibold shrink-0">{monthB.slice(0, 3)}</span>
+                                <div className="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden">
                                   <div
-                                    className="bg-emerald-400 h-full rounded-full transition-all"
+                                    className="bg-emerald-500 h-full rounded-full transition-all"
                                     style={{ width: `${barB}%` }}
                                   />
                                 </div>
-                                <span className="font-mono text-slate-300 font-bold w-8 text-right">
+                                <span className="font-mono text-slate-800 font-bold w-8 text-right">
                                   {row.bFr.toFixed(0)}%
                                 </span>
                               </div>
@@ -2176,67 +2210,62 @@ export default function MonthComparePage() {
       {/* ── TAB CONTENT 2: SKU-LEVEL MOVERS ── */}
       {activeTab === "sku-compare" && (
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 mt-4">
-          <div className="bg-slate-900/70 border border-white/10 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-md">
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
             {/* Toolbar for SKUs */}
-            <div className="px-5 py-3.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-3 bg-slate-950/40">
+            <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-200">
-                  SKU Month & Day-Range Performance Comparator
+                <span className="font-bold text-slate-900">
+                  SKU Month-on-Month Performance Comparator
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-500">
                   ({skuComparisonData.length} SKUs displayed)
                 </span>
               </div>
 
               {/* SKU Filter Segmented Buttons */}
-              <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-white/10 text-xs">
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
                 <button
                   onClick={() => setSkuFilterType("all")}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
-                    skuFilterType === "all"
-                      ? "bg-indigo-600 text-white"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${skuFilterType === "all"
+                      ? "bg-white text-indigo-700 shadow-xs border border-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                    }`}
                 >
                   All SKUs
                 </button>
                 <button
                   onClick={() => setSkuFilterType("gainers")}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
-                    skuFilterType === "gainers"
-                      ? "bg-emerald-600 text-white"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${skuFilterType === "gainers"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-emerald-700"
+                    }`}
                 >
                   Top Gainers (FR ↑)
                 </button>
                 <button
                   onClick={() => setSkuFilterType("droppers")}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
-                    skuFilterType === "droppers"
-                      ? "bg-rose-600 text-white"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${skuFilterType === "droppers"
+                      ? "bg-rose-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-rose-700"
+                    }`}
                 >
                   Top Droppers (FR ↓)
                 </button>
                 <button
                   onClick={() => setSkuFilterType("growth")}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
-                    skuFilterType === "growth"
-                      ? "bg-indigo-600 text-white"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${skuFilterType === "growth"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-indigo-700"
+                    }`}
                 >
                   High Growth (PO ↑)
                 </button>
                 <button
                   onClick={() => setSkuFilterType("gap")}
-                  className={`px-3 py-1 rounded-lg font-semibold transition ${
-                    skuFilterType === "gap"
-                      ? "bg-amber-600 text-white"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${skuFilterType === "gap"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-amber-700"
+                    }`}
                 >
                   High Gap in {monthB}
                 </button>
@@ -2247,24 +2276,32 @@ export default function MonthComparePage() {
             <div className="overflow-x-auto custom-scrollbar max-h-[700px]">
               <table className="w-full text-left border-collapse text-xs">
                 <thead className="sticky top-0 z-20">
-                  <tr className="bg-slate-950 border-b border-white/10 text-slate-300 font-bold uppercase tracking-wider text-[11px]">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider text-[11px]">
                     <th className="py-3 px-4 w-12 text-center">Image</th>
                     <th className="py-3 px-4">SKU Name & Category</th>
-                    <th className="py-3 px-3 text-right bg-sky-950/40 text-sky-300">
+                    <th className="py-3 px-3 text-right bg-sky-50 text-sky-900 border-r border-sky-100">
                       <div>{monthA} PO ({unitSymbol})</div>
-                      <div className="text-[9px] text-sky-400/80 font-normal">Day {dayFromA}–{dayToA} ({formatDateShort(dateFromA)}–{formatDateShort(dateToA)})</div>
+                      {rangeLabelA && (
+                        <div className="text-[9px] font-normal text-sky-700 font-sans">({rangeLabelA})</div>
+                      )}
                     </th>
-                    <th className="py-3 px-3 text-center bg-sky-950/40 text-sky-300 border-r border-white/10">
+                    <th className="py-3 px-3 text-center bg-sky-50 text-sky-900 border-r border-slate-200">
                       <div>{monthA} FR %</div>
-                      <div className="text-[9px] text-sky-400/80 font-normal">Day {dayFromA}–{dayToA}</div>
+                      {rangeLabelA && (
+                        <div className="text-[9px] font-normal text-sky-700 font-sans">({rangeLabelA})</div>
+                      )}
                     </th>
-                    <th className="py-3 px-3 text-right bg-emerald-950/40 text-emerald-300">
+                    <th className="py-3 px-3 text-right bg-emerald-50 text-emerald-900 border-r border-emerald-100">
                       <div>{monthB} PO ({unitSymbol})</div>
-                      <div className="text-[9px] text-emerald-400/80 font-normal">Day {dayFromB}–{dayToB} ({formatDateShort(dateFromB)}–{formatDateShort(dateToB)})</div>
+                      {rangeLabelB && (
+                        <div className="text-[9px] font-normal text-emerald-700 font-sans">({rangeLabelB})</div>
+                      )}
                     </th>
-                    <th className="py-3 px-3 text-center bg-emerald-950/40 text-emerald-300 border-r border-white/10">
+                    <th className="py-3 px-3 text-center bg-emerald-50 text-emerald-900 border-r border-slate-200">
                       <div>{monthB} FR %</div>
-                      <div className="text-[9px] text-emerald-400/80 font-normal">Day {dayFromB}–{dayToB}</div>
+                      {rangeLabelB && (
+                        <div className="text-[9px] font-normal text-emerald-700 font-sans">({rangeLabelB})</div>
+                      )}
                     </th>
                     <th className="py-3 px-3 text-right">Δ PO Demand</th>
                     <th className="py-3 px-3 text-center">Δ FR % pts</th>
@@ -2273,7 +2310,7 @@ export default function MonthComparePage() {
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-white/5 font-medium">
+                <tbody className="divide-y divide-slate-100 font-medium">
                   {skuComparisonData.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="py-12 text-center text-slate-500">
@@ -2284,13 +2321,13 @@ export default function MonthComparePage() {
                     skuComparisonData.slice(0, 100).map((sku) => (
                       <tr
                         key={sku.skuId}
-                        className="hover:bg-white/[0.03] transition-colors group"
+                        className="hover:bg-slate-50/80 transition-colors group"
                       >
                         {/* Image Thumbnail */}
                         <td className="py-2.5 px-4 text-center">
                           <button
                             onClick={() => openSkuLightbox(sku)}
-                            className="w-8 h-8 rounded-lg bg-slate-800 border border-white/10 hover:border-indigo-400 grid place-items-center transition text-sm shadow-sm overflow-hidden"
+                            className="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 hover:border-indigo-500 grid place-items-center transition text-sm shadow-xs overflow-hidden"
                             title="Click to preview SKU image"
                           >
                             {sku.icon ? (
@@ -2307,18 +2344,23 @@ export default function MonthComparePage() {
                           <div className="flex flex-col">
                             <span
                               onClick={() => openSkuLightbox(sku)}
-                              className="font-bold text-slate-200 hover:text-indigo-300 cursor-pointer truncate"
-                              title={sku.skuName}
+                              className="font-bold text-slate-900 hover:text-indigo-600 cursor-pointer truncate"
+                              title={sku.mmd?.name || sku.skuName}
                             >
-                              {sku.skuName}
+                              {sku.mmd?.name || sku.skuName}
                             </span>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-800/40">
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold">
                                 {sku.category}
                               </span>
                               {sku.mmd?.code && (
-                                <span className="text-[10px] text-slate-400 font-mono">
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-violet-50 text-violet-700 border border-violet-200 font-mono font-bold">
                                   MMD: {sku.mmd.code}
+                                </span>
+                              )}
+                              {sku.mmd?.name && sku.mmd.name !== sku.skuName && (
+                                <span className="text-[10px] text-slate-400 truncate max-w-[150px]" title={`Portal SKU: ${sku.skuName}`}>
+                                  Portal: {sku.skuName}
                                 </span>
                               )}
                             </div>
@@ -2326,18 +2368,18 @@ export default function MonthComparePage() {
                         </td>
 
                         {/* Month A PO & FR */}
-                        <td className="py-2.5 px-3 text-right font-mono bg-sky-950/10 text-slate-300">
+                        <td className="py-2.5 px-3 text-right font-mono bg-sky-50/40 text-slate-700">
                           {L(sku.aPo)}
                         </td>
-                        <td className="py-2.5 px-3 text-center bg-sky-950/10 border-r border-white/10">
+                        <td className="py-2.5 px-3 text-center bg-sky-50/40 border-r border-slate-200">
                           <span className={frPill(sku.aFr)}>{sku.aFr.toFixed(1)}%</span>
                         </td>
 
                         {/* Month B PO & FR */}
-                        <td className="py-2.5 px-3 text-right font-mono bg-emerald-950/10 text-white font-bold">
+                        <td className="py-2.5 px-3 text-right font-mono bg-emerald-50/40 text-slate-900 font-bold">
                           {L(sku.bPo)}
                         </td>
-                        <td className="py-2.5 px-3 text-center bg-emerald-950/10 border-r border-white/10">
+                        <td className="py-2.5 px-3 text-center bg-emerald-50/40 border-r border-slate-200">
                           <span className={frPill(sku.bFr)}>{sku.bFr.toFixed(1)}%</span>
                         </td>
 
@@ -2345,7 +2387,7 @@ export default function MonthComparePage() {
                         <td className="py-2.5 px-3 text-right font-mono">
                           <span
                             className={
-                              sku.diffPo >= 0 ? "text-emerald-400" : "text-rose-400"
+                              sku.diffPo >= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"
                             }
                           >
                             {sku.diffPo >= 0 ? "+" : ""}
@@ -2356,11 +2398,10 @@ export default function MonthComparePage() {
                         {/* Delta FR */}
                         <td className="py-2.5 px-3 text-center">
                           <span
-                            className={`px-2 py-0.5 rounded text-xs font-bold ${
-                              sku.diffFr >= 0
-                                ? "bg-emerald-950/70 text-emerald-300 border border-emerald-700/40"
-                                : "bg-rose-950/70 text-rose-300 border border-rose-700/40"
-                            }`}
+                            className={`px-2 py-0.5 rounded text-xs font-bold ${sku.diffFr >= 0
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-300"
+                                : "bg-rose-50 text-rose-700 border border-rose-300"
+                              }`}
                           >
                             {sku.diffFr >= 0 ? "▲ +" : "▼ "}
                             {sku.diffFr.toFixed(1)}%
@@ -2368,29 +2409,29 @@ export default function MonthComparePage() {
                         </td>
 
                         {/* Month B Gap */}
-                        <td className="py-2.5 px-3 text-right font-mono text-rose-300">
+                        <td className="py-2.5 px-3 text-right font-mono text-rose-600 font-bold">
                           {sku.bGap > 0 ? L(sku.bGap) : "—"}
                         </td>
 
                         {/* Status / Quick Tag */}
                         <td className="py-2.5 px-4">
                           {sku.aPo === 0 && sku.bPo > 0 && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-950 text-sky-300 border border-sky-800">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-300">
                               NEW in {monthB}
                             </span>
                           )}
                           {sku.aPo > 0 && sku.bPo === 0 && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-white/10">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                               Dropped in {monthB}
                             </span>
                           )}
                           {sku.bFr === 100 && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800/40">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
                               100% Fulfilled
                             </span>
                           )}
                           {sku.bPo > 0 && sku.bFr === 0 && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950/90 text-rose-300 border border-rose-800/50">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-300">
                               Zero Supply Alert
                             </span>
                           )}
@@ -2403,7 +2444,7 @@ export default function MonthComparePage() {
             </div>
 
             {skuComparisonData.length > 100 && (
-              <div className="p-3 text-center text-xs text-slate-400 border-t border-white/10 bg-slate-950/60">
+              <div className="p-3 text-center text-xs text-slate-500 border-t border-slate-200 bg-slate-50">
                 Showing top 100 of {skuComparisonData.length} SKUs. Use the search bar to find specific products.
               </div>
             )}
@@ -2414,27 +2455,27 @@ export default function MonthComparePage() {
       {/* ── TAB CONTENT 3: MASTER MULTI-MONTH MATRIX ── */}
       {activeTab === "matrix" && (
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 mt-4">
-          <div className="bg-slate-900/70 border border-white/10 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-md">
-            <div className="px-5 py-3.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-3 bg-slate-950/40">
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-5 py-3.5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
               <div>
-                <span className="font-bold text-slate-200 capitalize">
+                <span className="font-bold text-slate-900 capitalize">
                   All Months Side-by-Side Matrix ({matrixDim.toUpperCase()})
                 </span>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Complete view across all available reporting months in chronological order
                 </p>
               </div>
 
               {/* Heatmap Legend */}
               <div className="flex items-center gap-3 text-xs">
-                <span className="text-slate-400 font-semibold">FR % Legend:</span>
-                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">
+                <span className="text-slate-600 font-semibold">FR % Legend:</span>
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
                   ≥ 90% (Good)
                 </span>
-                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950 text-amber-300 border border-amber-700">
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-300">
                   75 - 89% (Medium)
                 </span>
-                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-950 text-rose-300 border border-rose-700">
+                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-300">
                   &lt; 75% (Critical)
                 </span>
               </div>
@@ -2444,8 +2485,8 @@ export default function MonthComparePage() {
             <div className="overflow-x-auto custom-scrollbar">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-950 border-b border-white/10 text-slate-300 font-bold uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4 sticky left-0 bg-slate-950 z-10 border-r border-white/10 capitalize">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase tracking-wider text-[11px]">
+                    <th className="py-3 px-4 sticky left-0 bg-slate-50 z-10 border-r border-slate-200 capitalize">
                       {matrixDim} Name
                     </th>
 
@@ -2454,9 +2495,9 @@ export default function MonthComparePage() {
                       <th
                         key={`col-${m}`}
                         colSpan={2}
-                        className="py-3 px-3 text-center border-r border-white/10 bg-slate-900/80"
+                        className="py-3 px-3 text-center border-r border-slate-200 bg-slate-100/80"
                       >
-                        <span className="font-extrabold text-indigo-300">{m}</span>
+                        <span className="font-extrabold text-indigo-900">{m}</span>
                       </th>
                     ))}
 
@@ -2468,10 +2509,10 @@ export default function MonthComparePage() {
                     </th>
                   </tr>
 
-                  <tr className="bg-slate-950/90 border-b border-white/10 text-[10px] text-slate-400 font-semibold uppercase">
-                    <th className="py-1 px-4 sticky left-0 bg-slate-950 z-10 border-r border-white/10" />
+                  <tr className="bg-slate-100/60 border-b border-slate-200 text-[10px] text-slate-500 font-bold uppercase">
+                    <th className="py-1 px-4 sticky left-0 bg-slate-100/60 z-10 border-r border-slate-200" />
                     {matrixData.headers.map((m) => (
-                      <th key={`subcol-${m}`} colSpan={2} className="py-1 px-2 border-r border-white/10">
+                      <th key={`subcol-${m}`} colSpan={2} className="py-1 px-2 border-r border-slate-200">
                         <div className="flex justify-between px-2">
                           <span>PO ({unitSymbol})</span>
                           <span>FR %</span>
@@ -2483,7 +2524,7 @@ export default function MonthComparePage() {
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-white/5 font-medium">
+                <tbody className="divide-y divide-slate-100 font-medium">
                   {matrixData.rows.length === 0 ? (
                     <tr>
                       <td colSpan={matrixData.headers.length * 2 + 3} className="py-12 text-center text-slate-500">
@@ -2494,12 +2535,12 @@ export default function MonthComparePage() {
                     matrixData.rows.map((row) => (
                       <tr
                         key={row.name}
-                        className="hover:bg-white/[0.03] transition-colors"
+                        className="hover:bg-slate-50/80 transition-colors"
                       >
-                        <td className="py-3 px-4 font-bold text-slate-200 sticky left-0 bg-slate-900/90 backdrop-blur-md z-10 border-r border-white/10">
+                        <td className="py-3 px-4 font-bold text-slate-900 sticky left-0 bg-white z-10 border-r border-slate-200 shadow-[1px_0_0_0_rgba(226,232,240,1)]">
                           {row.name}
                           {row.category && (
-                            <span className="block text-[10px] text-slate-400 font-normal">
+                            <span className="block text-[10px] text-slate-500 font-normal">
                               {row.category}
                             </span>
                           )}
@@ -2512,10 +2553,10 @@ export default function MonthComparePage() {
                             <td
                               key={`cell-${row.name}-${m}`}
                               colSpan={2}
-                              className="py-2.5 px-3 border-r border-white/10"
+                              className="py-2.5 px-3 border-r border-slate-200"
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <span className="font-mono text-slate-300">
+                                <span className="font-mono text-slate-800">
                                   {mData.po > 0 ? L(mData.po) : "—"}
                                 </span>
                                 {mData.po > 0 ? (
@@ -2523,7 +2564,7 @@ export default function MonthComparePage() {
                                     {mData.fr.toFixed(0)}%
                                   </span>
                                 ) : (
-                                  <span className="text-slate-600 text-[11px]">—</span>
+                                  <span className="text-slate-400 text-[11px]">—</span>
                                 )}
                               </div>
                             </td>
@@ -2531,7 +2572,7 @@ export default function MonthComparePage() {
                         })}
 
                         {/* Total Summary */}
-                        <td className="py-3 px-4 text-right font-mono font-bold text-white">
+                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
                           {L(row.totalPo)}
                         </td>
                         <td className="py-3 px-4 text-center">

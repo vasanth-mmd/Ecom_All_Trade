@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import UploadButton from "../upload-button";
 import SyncStatus from "../sync-status";
 import { matchSkuIcon } from "@/lib/sku-icon";
+import { mmdGroup, lookupMmd } from "@/lib/mmd-mapping";
 import SkuImagePopup from "../sku-image-popup";
 import { lookupDepoByCity } from "@/lib/depo-mapping";
 import { broadcastTickerSync } from "@/lib/ticker-sync";
@@ -23,6 +24,12 @@ const ymdToDate = (n: number) => {
   const s = String(n);
   return s.length === 8 ? s.slice(0, 4) + "-" + s.slice(4, 6) + "-" + s.slice(6, 8) : "—";
 };
+const ymdToDayName = (n: number) => {
+  const s = String(n);
+  if (s.length !== 8) return "";
+  const dt = new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)));
+  return dt.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+};
 const ymdToUTC = (n: number) => {
   const s = String(n);
   return s.length === 8 ? Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)) : null;
@@ -35,7 +42,13 @@ const diffDays = (fromYmd: number, toYmd: number) => {
 };
 const todayYmd = () => {
   const t = new Date();
-  return t.getUTCFullYear() * 10000 + (t.getUTCMonth() + 1) * 100 + t.getUTCDate();
+  const istStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(t);
+  return +istStr.replace(/-/g, "");
 };
 
 const dateToYmd = (s: string) => (s ? +s.replaceAll("-", "") : 0);
@@ -62,10 +75,17 @@ type UrgencyKey = (typeof URGENCY_OPTIONS)[number]["key"];
 function getExpiryStatus(daysLeft: number | null) {
   if (daysLeft === null)
     return { label: "No Expiry", cls: "bg-slate-100 text-slate-600 border-slate-200" };
-  if (daysLeft < 0)
+  // Under D-2 rule: Expiry <= D - 2 is Expired
+  if (daysLeft <= -2)
     return {
       label: `Expired ${Math.abs(daysLeft)}d ago`,
       cls: "bg-rose-100 text-rose-800 border-rose-200 font-bold",
+    };
+  // D-1 grace window: still within open queue
+  if (daysLeft === -1)
+    return {
+      label: "Open · D-1 Grace",
+      cls: "bg-amber-100 text-amber-800 border-amber-300 font-bold animate-pulse",
     };
   if (daysLeft === 0)
     return {
@@ -98,7 +118,7 @@ function getFillRatePill(fr: number) {
 /* ── Reusable Multi-Select Checkbox Dropdown Component ── */
 interface MultiSelectProps {
   label: string;
-  options: { key: string; label: string }[];
+  options: { key: string; label: string; subLabel?: string; code?: string }[];
   selected: string[];
   onChange: (selected: string[]) => void;
   open: boolean;
@@ -123,7 +143,13 @@ function MultiSelectDropdown({
   const filteredOptions = useMemo(() => {
     if (!q.trim()) return options;
     const lower = q.toLowerCase();
-    return options.filter((o) => o.label.toLowerCase().includes(lower));
+    return options.filter(
+      (o) =>
+        o.label.toLowerCase().includes(lower) ||
+        o.key.toLowerCase().includes(lower) ||
+        (o.subLabel && o.subLabel.toLowerCase().includes(lower)) ||
+        (o.code && o.code.toLowerCase().includes(lower))
+    );
   }, [options, q]);
 
   const toggleItem = (key: string) => {
@@ -176,7 +202,7 @@ function MultiSelectDropdown({
         <>
           <div className="fixed inset-0 z-40" onClick={onClose} />
           <div
-            className="absolute left-0 top-full mt-1.5 z-50 w-72 max-w-[90vw] bg-white border border-purple-200 rounded-2xl shadow-2xl p-3 space-y-2 animate-in fade-in zoom-in-95 duration-100"
+            className="absolute left-0 top-full mt-1.5 z-50 w-80 max-w-[90vw] bg-white border border-purple-200 rounded-2xl shadow-2xl p-3 space-y-2 animate-in fade-in zoom-in-95 duration-100"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative">
@@ -223,7 +249,7 @@ function MultiSelectDropdown({
               </span>
             </div>
 
-            <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
+            <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
               {filteredOptions.length === 0 ? (
                 <div className="text-center py-4 text-xs text-slate-400 font-medium">
                   No matches found
@@ -234,7 +260,7 @@ function MultiSelectDropdown({
                   return (
                     <label
                       key={opt.key}
-                      className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${isChecked
+                      className={`flex items-start gap-2.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${isChecked
                           ? "bg-purple-50 text-purple-900 font-bold"
                           : "text-slate-700 hover:bg-slate-100"
                         }`}
@@ -243,11 +269,25 @@ function MultiSelectDropdown({
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => toggleItem(opt.key)}
-                        className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 h-4 w-4 accent-purple-600 cursor-pointer shrink-0"
+                        className="rounded border-slate-300 text-purple-600 focus:ring-purple-500 h-4 w-4 accent-purple-600 cursor-pointer shrink-0 mt-0.5"
                       />
-                      <span className="truncate flex-1" title={opt.label}>
-                        {opt.label}
-                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          {opt.code && (
+                            <span className="font-mono text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-800 shrink-0">
+                              {opt.code}
+                            </span>
+                          )}
+                          <span className="truncate text-xs font-bold text-slate-900" title={opt.label}>
+                            {opt.label}
+                          </span>
+                        </div>
+                        {opt.subLabel && (
+                          <div className="text-[10px] font-medium text-slate-400 truncate mt-0.5" title={opt.subLabel}>
+                            {opt.subLabel}
+                          </div>
+                        )}
+                      </div>
                     </label>
                   );
                 })
@@ -554,15 +594,16 @@ export default function DailyPoTrackerPage() {
   const [activeTab, setActiveTab] = useState<"daily-po" | "location-monitor">("daily-po");
   const [locationViewMode, setLocationViewMode] = useState<"by-po" | "by-city-summary">("by-po");
   const [timelinePanelTab, setTimelinePanelTab] = useState<"pos" | "skus">("pos");
-  const [timelineSortKey, setTimelineSortKey] = useState<"date" | "poCount" | "poVal" | "grnVal" | "gapVal" | "frVal">("date");
+  const [timelineDisplayMode, setTimelineDisplayMode] = useState<"table" | "cards">("table");
+  const [timelineSortKey, setTimelineSortKey] = useState<string>("date");
   const [timelineSortDir, setTimelineSortDir] = useState<"asc" | "desc">("desc");
 
-  const toggleTimelineSort = (key: "date" | "poCount" | "poVal" | "grnVal" | "gapVal" | "frVal") => {
+  const toggleTimelineSort = (key: string) => {
     if (timelineSortKey === key) {
       setTimelineSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setTimelineSortKey(key);
-      setTimelineSortDir("desc");
+      setTimelineSortDir(key === "date" ? "desc" : "desc");
     }
   };
 
@@ -623,6 +664,10 @@ export default function DailyPoTrackerPage() {
           const max = data.meta.date_max as string;
           setFFrom(max.slice(0, 7) + "-01");
           setFTo(max);
+        }
+        // Default to all statuses available for multi-select filtering
+        if (data?.dims?.status) {
+          // All 5 canonical statuses available in dropdown
         }
       })
       .catch((e) => setErr(String(e.message || e)));
@@ -721,11 +766,12 @@ export default function DailyPoTrackerPage() {
         const daysLeft = rowExpiryDate > 0 ? diffDays(nowYmd, rowExpiryDate) : null;
         let matchesUrgency = false;
 
-        if (urgencySet.has("expired") && daysLeft !== null && daysLeft < 0) matchesUrgency = true;
-        if (urgencySet.has("today") && daysLeft === 0) matchesUrgency = true;
-        if (urgencySet.has("2d") && daysLeft !== null && daysLeft > 0 && daysLeft <= 2)
+        // Under D-2 rule: Expiry <= D-2 (daysLeft <= -2) is Expired
+        if (urgencySet.has("expired") && daysLeft !== null && daysLeft <= -2) matchesUrgency = true;
+        if (urgencySet.has("today") && (daysLeft === 0 || daysLeft === -1)) matchesUrgency = true;
+        if (urgencySet.has("2d") && daysLeft !== null && daysLeft >= -1 && daysLeft <= 2)
           matchesUrgency = true;
-        if (urgencySet.has("5d") && daysLeft !== null && daysLeft > 0 && daysLeft <= 5)
+        if (urgencySet.has("5d") && daysLeft !== null && daysLeft >= -1 && daysLeft <= 5)
           matchesUrgency = true;
         if (urgencySet.has("safe") && daysLeft !== null && daysLeft > 5) matchesUrgency = true;
         if (urgencySet.has("nodate") && daysLeft === null) matchesUrgency = true;
@@ -783,7 +829,8 @@ export default function DailyPoTrackerPage() {
       const expiryYmd = r[13];
       if (expiryYmd > 0) {
         const days = diffDays(nowYmd, expiryYmd);
-        if (days !== null && days <= 2) criticalExpiryCount++;
+        // Under D-2 rule: Open POs expiring soon or at grace (daysLeft >= -1 && <= 2)
+        if (days !== null && days >= -1 && days <= 2) criticalExpiryCount++;
       }
     }
 
@@ -933,48 +980,54 @@ export default function DailyPoTrackerPage() {
         gapQty: Math.max(0, item.poQty - item.grnQty),
         gapVal: Math.max(0, item.poVal - item.grnVal),
         frVal: item.poVal > 0 ? (item.grnVal / item.poVal) * 100 : 0,
-        frQty: item.poQty > 0 ? (item.grnQty / item.poQty) * 100 : 0,
         poCount: item.poIds.size,
       }))
       .sort((a, b) => b.date - a.date);
   }, [d, filteredRows]);
 
+  // Sorted summary for timeline table
   const sortedDailySummary = useMemo(() => {
     return [...dailySummary].sort((a, b) => {
-      let diff = 0;
-      if (timelineSortKey === "date") diff = a.date - b.date;
-      else if (timelineSortKey === "poCount") diff = a.poCount - b.poCount;
-      else if (timelineSortKey === "poVal") diff = a.poVal - b.poVal;
-      else if (timelineSortKey === "grnVal") diff = a.grnVal - b.grnVal;
-      else if (timelineSortKey === "gapVal") diff = a.gapVal - b.gapVal;
-      else if (timelineSortKey === "frVal") diff = a.frVal - b.frVal;
-      return timelineSortDir === "asc" ? diff : -diff;
+      let valA: any = (a as any)[timelineSortKey];
+      let valB: any = (b as any)[timelineSortKey];
+      if (valA < valB) return timelineSortDir === "asc" ? -1 : 1;
+      if (valA > valB) return timelineSortDir === "asc" ? 1 : -1;
+      return 0;
     });
   }, [dailySummary, timelineSortKey, timelineSortDir]);
 
+  // Summary totals for timeline table footer
   const timelineTotals = useMemo(() => {
-    let poCount = 0;
-    let poQty = 0;
-    let poVal = 0;
-    let grnQty = 0;
-    let grnVal = 0;
-    let gapQty = 0;
-    let gapVal = 0;
+    let totalPos = 0;
+    let totalPoQty = 0;
+    let totalPoVal = 0;
+    let totalGrnQty = 0;
+    let totalGrnVal = 0;
+    let totalGapQty = 0;
+    let totalGapVal = 0;
 
     for (const day of dailySummary) {
-      poCount += day.poCount;
-      poQty += day.poQty;
-      poVal += day.poVal;
-      grnQty += day.grnQty;
-      grnVal += day.grnVal;
-      gapQty += day.gapQty;
-      gapVal += day.gapVal;
+      totalPos += day.poCount;
+      totalPoQty += day.poQty;
+      totalPoVal += day.poVal;
+      totalGrnQty += day.grnQty;
+      totalGrnVal += day.grnVal;
+      totalGapQty += day.gapQty;
+      totalGapVal += day.gapVal;
     }
 
-    const frVal = poVal > 0 ? (grnVal / poVal) * 100 : 0;
-    const frQty = poQty > 0 ? (grnQty / poQty) * 100 : 0;
-
-    return { poCount, poQty, poVal, grnQty, grnVal, gapQty, gapVal, frVal, frQty };
+    const frVal = totalPoVal > 0 ? (totalGrnVal / totalPoVal) * 100 : 0;
+    return {
+      daysCount: dailySummary.length,
+      totalPos,
+      totalPoQty,
+      totalPoVal,
+      totalGrnQty,
+      totalGrnVal,
+      totalGapQty,
+      totalGapVal,
+      frVal,
+    };
   }, [dailySummary]);
 
   // PO-Wise details for focusedTimelineDate
@@ -1004,6 +1057,7 @@ export default function DailyPoTrackerPage() {
         status: string;
         skus: {
           skuName: string;
+          skuCode?: string;
           category: string;
           poQty: number;
           poVal: number;
@@ -1023,7 +1077,10 @@ export default function DailyPoTrackerPage() {
       const category = d.dims.category[r[4]];
       const depoEntry = lookupDepoByCity(city);
       const depo = depoEntry?.depo || "—";
-      const skuName = d.dims.sku[r[6]];
+      const rawSkuName = d.dims.sku[r[6]];
+      const mmd = mmdGroup(rawSkuName);
+      const skuName = mmd.name || rawSkuName;
+      const skuCode = mmd.code || "";
       const expiryDate = ymdToDate(r[13]);
       const daysLeft = r[13] > 0 ? diffDays(nowYmd, r[13]) : null;
       const status = d.dims.status[r[5]];
@@ -1061,6 +1118,7 @@ export default function DailyPoTrackerPage() {
 
       item.skus.push({
         skuName,
+        skuCode,
         category,
         poQty: r[7],
         poVal: r[8],
@@ -1111,7 +1169,9 @@ export default function DailyPoTrackerPage() {
     >();
 
     for (const r of rowsForDate) {
-      const skuName = d.dims.sku[r[6]];
+      const rawSkuName = d.dims.sku[r[6]];
+      const mmd = mmdGroup(rawSkuName);
+      const skuName = mmd.name || rawSkuName;
       const category = d.dims.category[r[4]];
       const poNum = d.dims.po[r[12]] || "—";
 
@@ -1194,7 +1254,8 @@ export default function DailyPoTrackerPage() {
       const depoEntry = lookupDepoByCity(city);
       const depo = depoEntry?.depo || "—";
       const poNum = d.dims.po[r[12]] || "—";
-      const skuName = d.dims.sku[r[6]];
+      const rawSkuName = d.dims.sku[r[6]];
+      const skuName = mmdGroup(rawSkuName).name || rawSkuName;
 
       const key = `${dt}_${city}_${poNum}`;
       let entry = map.get(key);
@@ -1293,7 +1354,8 @@ export default function DailyPoTrackerPage() {
       const depoEntry = lookupDepoByCity(city);
       const depo = depoEntry?.depo || "—";
       const poNum = d.dims.po[r[12]] || "—";
-      const skuName = d.dims.sku[r[6]];
+      const rawSkuName = d.dims.sku[r[6]];
+      const skuName = mmdGroup(rawSkuName).name || rawSkuName;
 
       const key = `${dt}_${city}`;
       let entry = map.get(key);
@@ -1500,7 +1562,11 @@ export default function DailyPoTrackerPage() {
         const expiryDate = ymdToDate(r[13]).toLowerCase();
         const daysLeft = r[13] > 0 ? diffDays(nowYmd, r[13]) : null;
         const expiryStatus = getExpiryStatus(daysLeft).label.toLowerCase();
-        const skuName = (d.dims.sku[r[6]] || "").toLowerCase();
+        const rawSku = d.dims.sku[r[6]] || "";
+        const mmd = lookupMmd(rawSku);
+        const mmdName = (mmd?.name || "").toLowerCase();
+        const mmdCode = (mmd?.code || "").toLowerCase();
+        const skuName = rawSku.toLowerCase();
         const city = (d.dims.city[r[3]] || "").toLowerCase();
         const depo = (lookupDepoByCity(d.dims.city[r[3]])?.depo || "").toLowerCase();
         const category = (d.dims.category[r[4]] || "").toLowerCase();
@@ -1514,6 +1580,8 @@ export default function DailyPoTrackerPage() {
           expiryDate.includes(q) ||
           expiryStatus.includes(q) ||
           skuName.includes(q) ||
+          mmdName.includes(q) ||
+          mmdCode.includes(q) ||
           city.includes(q) ||
           depo.includes(q) ||
           category.includes(q) ||
@@ -1880,7 +1948,15 @@ export default function DailyPoTrackerPage() {
 
           <MultiSelectDropdown
             label="SKU / Product"
-            options={d.dims.sku.map((sku) => ({ key: sku, label: sku }))}
+            options={d.dims.sku.map((sku) => {
+              const g = mmdGroup(sku);
+              return {
+                key: sku,
+                label: g.name || sku,
+                subLabel: g.name && g.name !== sku ? sku : undefined,
+                code: g.code || undefined,
+              };
+            })}
             selected={selSkus}
             onChange={(s) => setSelSkus(s)}
             open={openDropdown === "sku"}
@@ -2023,14 +2099,16 @@ export default function DailyPoTrackerPage() {
         </div>
       </div>
 
-      {/* ── Daily Fulfilment Trend Timeline ── */}
+      {/* ── Daily Fulfilment Trend Timeline & Summary Table ── */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        {/* Header Toolbar */}
-        <div className="flex items-center justify-between flex-wrap gap-3 pb-2 border-b border-slate-100">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-lg font-extrabold text-slate-900">📅 Daily PO Activity & Gap Summary Table</h2>
-              <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1 rounded-full border border-purple-200">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🗓️</span>
+              <h2 className="text-lg font-extrabold text-slate-900">
+                Daily PO Activity & Gap {timelineDisplayMode === "table" ? "Summary Table" : "Timeline"}
+              </h2>
+              <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
                 {dailySummary.length} Active Days
               </span>
             </div>
@@ -2039,191 +2117,210 @@ export default function DailyPoTrackerPage() {
             </p>
           </div>
 
-          {focusedTimelineDate && (
-            <button
-              onClick={() => setFocusedTimelineDate(null)}
-              className="text-xs font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 px-3.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1"
-            >
-              <span>✕</span>
-              <span>Clear Day Focus ({focusedTimelineDate})</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* View Mode Switcher */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+              <button
+                onClick={() => setTimelineDisplayMode("table")}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  timelineDisplayMode === "table"
+                    ? "bg-purple-700 text-white shadow-xs font-extrabold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <span>📊</span>
+                <span>Summary Table</span>
+              </button>
+              <button
+                onClick={() => setTimelineDisplayMode("cards")}
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  timelineDisplayMode === "cards"
+                    ? "bg-purple-700 text-white shadow-xs font-extrabold"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <span>🎴</span>
+                <span>Cards Grid</span>
+              </button>
+            </div>
+
+            {focusedTimelineDate && (
+              <button
+                onClick={() => setFocusedTimelineDate(null)}
+                className="text-xs font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 px-3 py-1.5 rounded-xl transition cursor-pointer border border-purple-200"
+              >
+                Clear Day Focus ✕
+              </button>
+            )}
+          </div>
         </div>
 
         {dailySummary.length === 0 ? (
           <div className="py-8 text-center text-slate-400 font-medium text-sm">
             No PO activity recorded for the selected date range and filter criteria.
           </div>
-        ) : (
-          /* ── FULL TABLE VIEW (No inner scrollbar / full range displayed) ── */
+        ) : timelineDisplayMode === "table" ? (
+          /* ── SUMMARY TABLE VIEW (Matches Exact Screenshot) ── */
           <div className="space-y-4">
             <div className="overflow-x-auto border border-slate-200 rounded-2xl bg-white shadow-2xs">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-100/95 text-slate-700 uppercase font-black tracking-wider border-b border-slate-200">
-                  <tr>
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/90 text-slate-700 font-extrabold uppercase tracking-wider text-[11px] border-b border-slate-200 select-none">
                     <th
                       onClick={() => toggleTimelineSort("date")}
-                      className="p-3 cursor-pointer hover:bg-slate-200/70 transition-colors select-none"
+                      className="py-3 px-4 cursor-pointer hover:bg-purple-50 transition-colors"
                     >
-                      <div className="flex items-center gap-1">
-                        <span>Date / Day</span>
-                        <span className="text-[10px] text-purple-700">
-                          {timelineSortKey === "date" ? (timelineSortDir === "asc" ? "▲" : "▼") : "↕"}
+                      <div className="flex items-center gap-1.5">
+                        <span>DATE / DAY</span>
+                        <span className="text-[10px] font-black text-purple-700">
+                          {timelineSortKey === "date" ? (timelineSortDir === "asc" ? "▲" : "▼") : "⇅"}
                         </span>
                       </div>
                     </th>
                     <th
                       onClick={() => toggleTimelineSort("poCount")}
-                      className="p-3 text-center cursor-pointer hover:bg-slate-200/70 transition-colors select-none"
+                      className="py-3 px-4 text-center cursor-pointer hover:bg-purple-50 transition-colors"
                     >
-                      <div className="flex items-center justify-center gap-1">
-                        <span>POs Raised</span>
-                        <span className="text-[10px] text-purple-700">
-                          {timelineSortKey === "poCount" ? (timelineSortDir === "asc" ? "▲" : "▼") : "↕"}
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>POS RAISED</span>
+                        <span className="text-[10px] font-black text-purple-700">
+                          {timelineSortKey === "poCount" ? (timelineSortDir === "asc" ? "▲" : "▼") : "⇅"}
                         </span>
                       </div>
                     </th>
                     <th
                       onClick={() => toggleTimelineSort("poVal")}
-                      className="p-3 text-right cursor-pointer hover:bg-slate-200/70 transition-colors select-none"
+                      className="py-3 px-4 text-right cursor-pointer hover:bg-purple-50 transition-colors"
                     >
-                      <div className="flex items-center justify-end gap-1">
-                        <span>PO Value (₹L)</span>
-                        <span className="text-[10px] text-purple-700">
-                          {timelineSortKey === "poVal" ? (timelineSortDir === "asc" ? "▲" : "▼") : "↕"}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span>PO VALUE (₹L)</span>
+                        <span className="text-[10px] font-black text-purple-700">
+                          {timelineSortKey === "poVal" ? (timelineSortDir === "asc" ? "▲" : "▼") : "⇅"}
                         </span>
                       </div>
                     </th>
                     <th
                       onClick={() => toggleTimelineSort("grnVal")}
-                      className="p-3 text-right cursor-pointer hover:bg-slate-200/70 transition-colors select-none"
+                      className="py-3 px-4 text-right cursor-pointer hover:bg-purple-50 transition-colors"
                     >
-                      <div className="flex items-center justify-end gap-1">
-                        <span>Fulfilled GRN (₹L)</span>
-                        <span className="text-[10px] text-purple-700">
-                          {timelineSortKey === "grnVal" ? (timelineSortDir === "asc" ? "▲" : "▼") : "↕"}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span>FULFILLED GRN (₹L)</span>
+                        <span className="text-[10px] font-black text-purple-700">
+                          {timelineSortKey === "grnVal" ? (timelineSortDir === "asc" ? "▲" : "▼") : "⇅"}
                         </span>
                       </div>
                     </th>
                     <th
                       onClick={() => toggleTimelineSort("gapVal")}
-                      className="p-3 text-right cursor-pointer hover:bg-slate-200/70 transition-colors select-none"
+                      className="py-3 px-4 text-right cursor-pointer hover:bg-purple-50 transition-colors"
                     >
-                      <div className="flex items-center justify-end gap-1">
-                        <span>Remaining Gap (₹L)</span>
-                        <span className="text-[10px] text-purple-700">
-                          {timelineSortKey === "gapVal" ? (timelineSortDir === "asc" ? "▲" : "▼") : "↕"}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span>REMAINING GAP (₹L)</span>
+                        <span className="text-[10px] font-black text-purple-700">
+                          {timelineSortKey === "gapVal" ? (timelineSortDir === "asc" ? "▲" : "▼") : "⇅"}
                         </span>
                       </div>
                     </th>
                     <th
                       onClick={() => toggleTimelineSort("frVal")}
-                      className="p-3 text-center cursor-pointer hover:bg-slate-200/70 transition-colors select-none min-w-[140px]"
+                      className="py-3 px-4 text-center cursor-pointer hover:bg-purple-50 transition-colors min-w-[130px]"
                     >
-                      <div className="flex items-center justify-center gap-1">
-                        <span>Fill Rate (Value)</span>
-                        <span className="text-[10px] text-purple-700">
-                          {timelineSortKey === "frVal" ? (timelineSortDir === "asc" ? "▲" : "▼") : "↕"}
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>FILL RATE (VALUE)</span>
+                        <span className="text-[10px] font-black text-purple-700">
+                          {timelineSortKey === "frVal" ? (timelineSortDir === "asc" ? "▲" : "▼") : "⇅"}
                         </span>
                       </div>
                     </th>
-                    <th className="p-3 text-center">Action / Details</th>
+                    <th className="py-3 px-4 text-center">ACTION / DETAILS</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {sortedDailySummary.map((day) => {
                     const dateStr = ymdToDate(day.date);
-                    const isSelected = focusedTimelineDate === dateStr;
-                    const isCritical = day.frVal < 75;
-
-                    let weekday = "";
-                    const utcMs = ymdToUTC(day.date);
-                    if (utcMs) {
-                      weekday = new Date(utcMs).toLocaleDateString("en-US", { weekday: "short" });
-                    }
+                    const dayName = ymdToDayName(day.date);
+                    const isFocused = focusedTimelineDate === dateStr;
 
                     return (
                       <tr
                         key={day.date}
-                        onClick={() => {
-                          if (focusedTimelineDate === dateStr) {
-                            setFocusedTimelineDate(null);
-                          } else {
-                            setFocusedTimelineDate(dateStr);
-                          }
-                        }}
+                        onClick={() => setFocusedTimelineDate(isFocused ? null : dateStr)}
                         className={`transition-colors cursor-pointer select-none ${
-                          isSelected
-                            ? "bg-purple-100/70 font-bold border-l-4 border-l-purple-600"
-                            : "hover:bg-purple-50/40"
+                          isFocused
+                            ? "bg-purple-50/80 border-l-4 border-l-purple-600"
+                            : "hover:bg-slate-50/80"
                         }`}
                       >
-                        {/* Date */}
-                        <td className="p-3">
+                        {/* Date / Day */}
+                        <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-slate-900 font-mono text-sm">
+                            <span className="font-bold text-slate-900 font-mono text-xs">
                               {dateStr}
                             </span>
-                            {weekday && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
-                                {weekday}
+                            {dayName && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                {dayName}
                               </span>
                             )}
                           </div>
                         </td>
 
                         {/* POs Raised */}
-                        <td className="p-3 text-center">
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-extrabold bg-purple-50 text-purple-800 border border-purple-200">
+                        <td className="py-3 px-4 text-center">
+                          <span className="inline-flex px-2.5 py-0.5 rounded-full font-bold text-xs bg-purple-50 text-purple-800 border border-purple-200">
                             {day.poCount} POs
                           </span>
                         </td>
 
-                        {/* PO Value & Qty */}
-                        <td className="p-3 text-right">
-                          <div className="font-black text-slate-900 text-sm">
+                        {/* PO Value */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="font-bold text-slate-900 font-mono text-xs">
                             ₹{L2(day.poVal)}L
                           </div>
-                          <div className="text-[11px] text-slate-400 font-semibold">
+                          <div className="text-[10px] text-slate-400 font-medium">
                             {L(day.poQty, 0)} Qty
                           </div>
                         </td>
 
-                        {/* GRN Value & Qty */}
-                        <td className="p-3 text-right">
-                          <div className="font-black text-emerald-700 text-sm">
+                        {/* Fulfilled GRN */}
+                        <td className="py-3 px-4 text-right">
+                          <div className="font-bold text-emerald-700 font-mono text-xs">
                             ₹{L2(day.grnVal)}L
                           </div>
-                          <div className="text-[11px] text-emerald-600/80 font-semibold">
+                          <div className="text-[10px] text-emerald-600/80 font-medium">
                             {L(day.grnQty, 0)} Qty
                           </div>
                         </td>
 
-                        {/* Gap Value & Qty */}
-                        <td className="p-3 text-right">
+                        {/* Remaining Gap */}
+                        <td className="py-3 px-4 text-right">
                           <div
-                            className={`font-black text-sm ${
-                              isCritical ? "text-rose-600" : day.gapVal > 0 ? "text-rose-500" : "text-slate-400"
+                            className={`font-bold font-mono text-xs ${
+                              day.gapVal > 0 ? "text-rose-600" : "text-slate-400"
                             }`}
                           >
                             ₹{L2(day.gapVal)}L
                           </div>
-                          <div className="text-[11px] text-slate-400 font-semibold">
+                          <div className="text-[10px] text-slate-400 font-medium">
                             {day.gapQty > 0 ? `${L(day.gapQty, 0)} Qty` : "—"}
                           </div>
                         </td>
 
-                        {/* Fill Rate Progress & Pill */}
-                        <td className="p-3 text-center">
+                        {/* Fill Rate (Value) */}
+                        <td className="py-3 px-4 text-center">
                           <div className="flex flex-col items-center gap-1">
                             <span
-                              className={`px-2 py-0.5 rounded-md font-black text-xs ${getFillRatePill(
-                                day.frVal
-                              )}`}
+                              className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                day.frVal >= 90
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : day.frVal >= 75
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200"
+                              }`}
                             >
                               {day.frVal.toFixed(1)}%
                             </span>
-                            <div className="w-24 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                               <div
                                 className={`h-full rounded-full ${
                                   day.frVal >= 90
@@ -2238,88 +2335,99 @@ export default function DailyPoTrackerPage() {
                           </div>
                         </td>
 
-                        {/* Action Button */}
-                        <td className="p-3 text-center">
+                        {/* Action / Inspect */}
+                        <td className="py-3 px-4 text-center">
                           <button
-                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (focusedTimelineDate === dateStr) {
-                                setFocusedTimelineDate(null);
-                              } else {
-                                setFocusedTimelineDate(dateStr);
-                              }
+                              setFocusedTimelineDate(isFocused ? null : dateStr);
                             }}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
-                              isSelected
+                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              isFocused
                                 ? "bg-purple-700 text-white shadow-xs"
-                                : "bg-white border border-purple-200 text-purple-700 hover:bg-purple-50"
+                                : "bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 hover:border-purple-300"
                             }`}
                           >
-                            {isSelected ? "Selected ✓" : "Inspect ➔"}
+                            {isFocused ? "Focused ✓" : "Inspect ➔"}
                           </button>
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
-                <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-300 text-xs">
-                  <tr>
-                    <td className="p-3 text-slate-900 font-black">
-                      Total ({dailySummary.length} Days)
+                <tfoot>
+                  <tr className="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                    <td className="py-3 px-4 font-black">
+                      Total ({timelineTotals.daysCount} Days)
                     </td>
-                    <td className="p-3 text-center font-black text-purple-900">
-                      {timelineTotals.poCount} POs
+                    <td className="py-3 px-4 text-center font-bold text-purple-900">
+                      {timelineTotals.totalPos} POs
                     </td>
-                    <td className="p-3 text-right">
-                      <div className="font-black text-slate-900">
-                        ₹{L2(timelineTotals.poVal)}L
+                    <td className="py-3 px-4 text-right">
+                      <div className="font-black text-slate-900 font-mono">
+                        ₹{L2(timelineTotals.totalPoVal)}L
                       </div>
-                      <div className="text-[10px] text-slate-500 font-semibold">
-                        {L(timelineTotals.poQty, 0)} Qty
-                      </div>
-                    </td>
-                    <td className="p-3 text-right">
-                      <div className="font-black text-emerald-700">
-                        ₹{L2(timelineTotals.grnVal)}L
-                      </div>
-                      <div className="text-[10px] text-emerald-600/80 font-semibold">
-                        {L(timelineTotals.grnQty, 0)} Qty
+                      <div className="text-[10px] text-slate-500 font-normal">
+                        {L(timelineTotals.totalPoQty, 0)} Qty
                       </div>
                     </td>
-                    <td className="p-3 text-right">
-                      <div className="font-black text-rose-600">
-                        ₹{L2(timelineTotals.gapVal)}L
+                    <td className="py-3 px-4 text-right">
+                      <div className="font-black text-emerald-700 font-mono">
+                        ₹{L2(timelineTotals.totalGrnVal)}L
                       </div>
-                      <div className="text-[10px] text-slate-500 font-semibold">
-                        {L(timelineTotals.gapQty, 0)} Qty
+                      <div className="text-[10px] text-emerald-600 font-normal">
+                        {L(timelineTotals.totalGrnQty, 0)} Qty
                       </div>
                     </td>
-                    <td className="p-3 text-center">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-md font-black text-xs ${getFillRatePill(
-                          timelineTotals.frVal
-                        )}`}
-                      >
-                        {timelineTotals.frVal.toFixed(1)}%
-                      </span>
+                    <td className="py-3 px-4 text-right">
+                      <div className="font-black text-rose-700 font-mono">
+                        ₹{L2(timelineTotals.totalGapVal)}L
+                      </div>
+                      <div className="text-[10px] text-rose-600 font-normal">
+                        {L(timelineTotals.totalGapQty, 0)} Qty
+                      </div>
                     </td>
-                    <td className="p-3 text-center text-slate-400 font-medium text-[11px]">
-                      —
+                    <td className="py-3 px-4 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-black ${
+                            timelineTotals.frVal >= 90
+                              ? "bg-emerald-100 text-emerald-800"
+                              : timelineTotals.frVal >= 75
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-rose-100 text-rose-800"
+                          }`}
+                        >
+                          {timelineTotals.frVal.toFixed(1)}%
+                        </span>
+                        <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              timelineTotals.frVal >= 90
+                                ? "bg-emerald-500"
+                                : timelineTotals.frVal >= 75
+                                ? "bg-amber-500"
+                                : "bg-rose-500"
+                            }`}
+                            style={{ width: `${Math.min(100, Math.max(0, timelineTotals.frVal))}%` }}
+                          />
+                        </div>
+                      </div>
                     </td>
+                    <td className="py-3 px-4 text-center text-slate-400 font-mono">—</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
 
-            {/* If a date is selected, show the focused details breakdown */}
+            {/* Focused Date Panel (Shows below table when a row is selected/inspected) */}
             {focusedTimelineDate && (
-              <div className="bg-slate-50/90 rounded-2xl border-2 border-purple-300 p-4 space-y-3 shadow-sm animate-in fade-in duration-200">
+              <div className="bg-slate-50/90 rounded-2xl border-2 border-purple-300 p-4 space-y-3 shadow-sm animate-in fade-in zoom-in-98 duration-150">
                 <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-slate-200">
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-black text-sm text-slate-900">
-                        📅 Focused Date Breakdown: {focusedTimelineDate}
+                        📅 Day Breakdown: {focusedTimelineDate}
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full bg-purple-600 text-white text-xs font-extrabold">
                         {activeFocusedPoList.length} POs
@@ -2334,10 +2442,11 @@ export default function DailyPoTrackerPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    {/* View Mode Toggle: PO View vs SKU View */}
                     <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-2xs">
                       <button
                         onClick={() => setTimelinePanelTab("pos")}
-                        className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
                           timelinePanelTab === "pos"
                             ? "bg-purple-700 text-white font-extrabold shadow-xs"
                             : "text-slate-600 hover:text-slate-900"
@@ -2347,7 +2456,7 @@ export default function DailyPoTrackerPage() {
                       </button>
                       <button
                         onClick={() => setTimelinePanelTab("skus")}
-                        className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
                           timelinePanelTab === "skus"
                             ? "bg-purple-700 text-white font-extrabold shadow-xs"
                             : "text-slate-600 hover:text-slate-900"
@@ -2359,17 +2468,16 @@ export default function DailyPoTrackerPage() {
 
                     <button
                       onClick={() => setFocusedTimelineDate(null)}
-                      className="text-xs font-bold text-slate-500 hover:text-slate-800 bg-white border border-slate-200 px-3 py-1.5 rounded-xl cursor-pointer"
+                      className="text-xs font-bold text-slate-500 hover:text-slate-800 px-2 py-1 rounded-lg hover:bg-slate-200 transition cursor-pointer"
                     >
-                      Close Breakdown ✕
+                      Close ✕
                     </button>
                   </div>
                 </div>
 
-                {/* Panel Content for Focused Date */}
+                {/* Panel Content */}
                 {timelinePanelTab === "pos" ? (
-                  /* PO View Table */
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[340px] overflow-y-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-100/90 text-slate-700 uppercase font-extrabold tracking-wider sticky top-0 z-10 border-b border-slate-200">
                         <tr>
@@ -2488,8 +2596,7 @@ export default function DailyPoTrackerPage() {
                     </table>
                   </div>
                 ) : (
-                  /* SKU View Table */
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[340px] overflow-y-auto">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-100/90 text-slate-700 uppercase font-extrabold tracking-wider sticky top-0 z-10 border-b border-slate-200">
                         <tr>
@@ -2575,6 +2682,334 @@ export default function DailyPoTrackerPage() {
                 )}
               </div>
             )}
+          </div>
+        ) : focusedTimelineDate ? (
+          /* FOCUSED DAY VIEW FOR CARDS MODE */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+            {/* Left: The Focused Date Card */}
+            <div className="lg:col-span-4 xl:col-span-3">
+              {dailySummary
+                .filter((day) => ymdToDate(day.date) === focusedTimelineDate)
+                .map((day) => {
+                  const dateStr = ymdToDate(day.date);
+                  const isCritical = day.frVal < 75;
+
+                  return (
+                    <div
+                      key={day.date}
+                      className="p-4 rounded-2xl border border-purple-600 bg-purple-100/70 ring-2 ring-purple-500 shadow-md select-none flex flex-col justify-between"
+                    >
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1">
+                        <span className="text-purple-950 font-black text-sm">{dateStr}</span>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] ${getFillRatePill(day.frVal)}`}>
+                          {day.frVal.toFixed(0)}% FR
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold text-slate-600 mb-2">{day.poCount} POs raised</div>
+                      <div className="flex items-baseline justify-between text-xs mb-2">
+                        <span className="font-black text-slate-900 text-sm">₹{L2(day.poVal)}L</span>
+                        <span className={`font-bold ${isCritical ? "text-rose-600" : "text-slate-500"}`}>
+                          Gap: ₹{L2(day.gapVal)}L
+                        </span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden mb-3">
+                        <div
+                          className={`h-full rounded-full ${day.frVal >= 90 ? "bg-emerald-500" : day.frVal >= 75 ? "bg-amber-500" : "bg-purple-600"
+                            }`}
+                          style={{ width: `${Math.min(100, day.frVal)}%` }}
+                        />
+                      </div>
+                      <div className="pt-2.5 border-t border-purple-200 flex items-center justify-between text-[11px] text-purple-900 font-bold">
+                        <span>Filled GRN: ₹{L2(day.grnVal)}L</span>
+                        <button
+                          onClick={() => setFocusedTimelineDate(null)}
+                          className="hover:text-purple-600 underline cursor-pointer text-[10px]"
+                        >
+                          Clear Focus ✕
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Right: The Marked Spared Area Panel for Focused Date */}
+            <div className="lg:col-span-8 xl:col-span-9 bg-slate-50/80 rounded-2xl border border-purple-200 p-4 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-slate-200">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-sm text-slate-900">
+                      📅 Date Focus: {focusedTimelineDate}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-600 text-white text-xs font-extrabold">
+                      {activeFocusedPoList.length} POs
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-200">
+                      {activeFocusedPoList.filter((p) => p.grnVal > 0 || p.grnQty > 0).length} GRNs Received
+                    </span>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                    PO-wise details, GRN fulfillment & SKU gap breakdown for {focusedTimelineDate}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold shadow-2xs">
+                  <button
+                    onClick={() => setTimelinePanelTab("pos")}
+                    className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${timelinePanelTab === "pos"
+                        ? "bg-purple-700 text-white font-extrabold shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                      }`}
+                  >
+                    📋 PO View ({activeFocusedPoList.length})
+                  </button>
+                  <button
+                    onClick={() => setTimelinePanelTab("skus")}
+                    className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer ${timelinePanelTab === "skus"
+                        ? "bg-purple-700 text-white font-extrabold shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                      }`}
+                  >
+                    🥛 SKU View ({activeFocusedSkuList.length})
+                  </button>
+                </div>
+              </div>
+
+              {timelinePanelTab === "pos" ? (
+                <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[340px] overflow-y-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100/90 text-slate-700 uppercase font-extrabold tracking-wider sticky top-0 z-10 border-b border-slate-200">
+                      <tr>
+                        <th className="p-2.5">PO Number</th>
+                        <th className="p-2.5">Location / City</th>
+                        <th className="p-2.5 text-center">PO Qty</th>
+                        <th className="p-2.5 text-center">GRN Qty</th>
+                        <th className="p-2.5 text-center">Gap Qty</th>
+                        <th className="p-2.5 text-right">PO Val (₹L)</th>
+                        <th className="p-2.5 text-right">GRN Val (₹L)</th>
+                        <th className="p-2.5 text-right">Gap Val (₹L)</th>
+                        <th className="p-2.5 text-center">FR %</th>
+                        <th className="p-2.5">Gap SKUs</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {activeFocusedPoList.map((po) => (
+                        <tr key={po.poNumber} className="hover:bg-purple-50/40 transition-colors">
+                          <td className="p-2.5 font-black text-purple-900">{po.poNumber}</td>
+                          <td className="p-2.5 font-bold text-slate-800">
+                            {po.city} <span className="text-[10px] font-semibold text-slate-400">({po.depo})</span>
+                          </td>
+                          <td className="p-2.5 text-center font-semibold text-slate-700">{L(po.poQty, 0)}</td>
+                          <td className="p-2.5 text-center font-bold text-emerald-700">{L(po.grnQty, 0)}</td>
+                          <td className="p-2.5 text-center font-bold text-rose-600">{L(po.gapQty, 0)}</td>
+                          <td className="p-2.5 text-right font-extrabold text-slate-900">₹{L2(po.poVal)}L</td>
+                          <td className="p-2.5 text-right font-extrabold text-emerald-700">₹{L2(po.grnVal)}L</td>
+                          <td className="p-2.5 text-right font-extrabold text-rose-600">₹{L2(po.gapVal)}L</td>
+                          <td className="p-2.5 text-center">
+                            <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${getFillRatePill(po.frVal)}`}>
+                              {po.frVal.toFixed(0)}%
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-slate-600 max-w-[260px]">
+                            {po.gapSkus.length === 0 ? (
+                              <span className="text-emerald-600 font-bold text-[11px]">✓ Fully Supplied</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {po.gapSkus.slice(0, 3).map((s) => {
+                                  const imgPath = matchSkuIcon(s.skuName);
+                                  return (
+                                    <span
+                                      key={s.skuName}
+                                      onClick={() =>
+                                        setSkuPopup({
+                                          icon: imgPath,
+                                          name: s.skuName,
+                                          stats: [
+                                            { label: "Category", value: s.category || "General" },
+                                            { label: "PO Qty", value: L(s.poQty, 0) },
+                                            { label: "Filled Qty", value: L(s.grnQty, 0) },
+                                            {
+                                              label: "Remaining Gap",
+                                              value: `${L(s.gapQty, 0)} (₹${L2(s.gapVal)}L)`,
+                                              cls: "text-rose-600 font-bold",
+                                            },
+                                            { label: "Fill Rate", value: `${s.frVal.toFixed(1)}%` },
+                                          ],
+                                        })
+                                      }
+                                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-rose-50 border border-rose-200/90 hover:bg-rose-100 hover:border-rose-300 text-rose-800 text-[10px] font-semibold cursor-pointer transition-all active:scale-95 shadow-2xs"
+                                      title={`Click to view product image & details for ${s.skuName}`}
+                                    >
+                                      {imgPath ? (
+                                        <img
+                                          src={imgPath}
+                                          alt=""
+                                          className="w-4 h-4 object-contain rounded bg-white shrink-0 border border-slate-200 p-0.5"
+                                        />
+                                      ) : (
+                                        <span className="text-[10px]">📦</span>
+                                      )}
+                                      <span className="truncate max-w-[130px]">{s.skuName}</span>
+                                      <span className="font-extrabold text-rose-700 text-[9px] bg-rose-100/90 px-1 py-0.2 rounded">
+                                        ({s.gapQty})
+                                      </span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white max-h-[340px] overflow-y-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100/90 text-slate-700 uppercase font-extrabold tracking-wider sticky top-0 z-10 border-b border-slate-200">
+                      <tr>
+                        <th className="p-2.5">SKU Name</th>
+                        <th className="p-2.5">Category</th>
+                        <th className="p-2.5 text-center">POs Count</th>
+                        <th className="p-2.5 text-right">PO Qty</th>
+                        <th className="p-2.5 text-right">GRN Qty</th>
+                        <th className="p-2.5 text-right">Gap Qty</th>
+                        <th className="p-2.5 text-right">PO Value (₹L)</th>
+                        <th className="p-2.5 text-right">GRN Value (₹L)</th>
+                        <th className="p-2.5 text-right">Gap Value (₹L)</th>
+                        <th className="p-2.5 text-center">FR %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {activeFocusedSkuList.map((sku) => {
+                        const imgPath = matchSkuIcon(sku.skuName);
+                        return (
+                          <tr
+                            key={sku.skuName}
+                            onClick={() =>
+                              setSkuPopup({
+                                icon: imgPath,
+                                name: sku.skuName,
+                                stats: [
+                                  { label: "Category", value: sku.category || "General" },
+                                  { label: "POs Count", value: `${sku.numPos} POs` },
+                                  { label: "PO Qty", value: L(sku.poQty, 0) },
+                                  { label: "Filled Qty", value: L(sku.grnQty, 0) },
+                                  {
+                                    label: "Remaining Gap",
+                                    value: `${L(sku.gapQty, 0)} (₹${L2(sku.gapVal)}L)`,
+                                    cls: "text-rose-600 font-bold",
+                                  },
+                                  { label: "Fill Rate", value: `${sku.frVal.toFixed(1)}%` },
+                                ],
+                              })
+                            }
+                            className="hover:bg-purple-50/60 transition-colors cursor-pointer"
+                          >
+                            <td className="p-2.5 font-bold text-slate-900">
+                              <div className="flex items-center gap-2">
+                                {imgPath ? (
+                                  <img
+                                    src={imgPath}
+                                    alt=""
+                                    className="w-7 h-7 object-contain rounded-md bg-white p-0.5 border border-slate-200 shadow-2xs shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-7 h-7 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-xs shrink-0">
+                                    📦
+                                  </div>
+                                )}
+                                <span className="truncate max-w-[220px]" title={sku.skuName}>
+                                  {sku.skuName}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-slate-500 font-medium">{sku.category}</td>
+                            <td className="p-2.5 text-center font-bold text-purple-900">
+                              <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-800 text-[10px]">
+                                {sku.numPos} POs
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-right font-semibold text-slate-700">{L(sku.poQty, 0)}</td>
+                            <td className="p-2.5 text-right font-semibold text-emerald-700">{L(sku.grnQty, 0)}</td>
+                            <td className="p-2.5 text-right font-bold text-rose-600">{L(sku.gapQty, 0)}</td>
+                            <td className="p-2.5 text-right font-extrabold text-slate-900">₹{L2(sku.poVal)}L</td>
+                            <td className="p-2.5 text-right font-extrabold text-emerald-700">₹{L2(sku.grnVal)}L</td>
+                            <td className="p-2.5 text-right font-extrabold text-rose-600">₹{L2(sku.gapVal)}L</td>
+                            <td className="p-2.5 text-center">
+                              <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${getFillRatePill(sku.frVal)}`}>
+                                {sku.frVal.toFixed(0)}%
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* ALL DAYS GRID VIEW (Cards Mode) */
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7 gap-3 max-h-[380px] overflow-y-auto pr-1">
+            {dailySummary.map((day) => {
+              const dateStr = ymdToDate(day.date);
+              const isSelected = focusedTimelineDate === dateStr;
+              const isCritical = day.frVal < 75;
+
+              return (
+                <div
+                  key={day.date}
+                  onClick={() => {
+                    if (focusedTimelineDate === dateStr) {
+                      setFocusedTimelineDate(null);
+                    } else {
+                      setFocusedTimelineDate(dateStr);
+                    }
+                  }}
+                  className={`group cursor-pointer p-3.5 rounded-2xl border transition-all shadow-xs hover:shadow-md select-none ${isSelected
+                      ? "border-purple-600 bg-purple-100/60 ring-2 ring-purple-500 shadow-md scale-[1.02]"
+                      : "border-slate-200 hover:border-purple-400 bg-slate-50/50 hover:bg-purple-50/30"
+                    }`}
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-1">
+                    <span className={isSelected ? "text-purple-950 font-black" : ""}>
+                      {dateStr.slice(5)}
+                    </span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded-md text-[10px] ${getFillRatePill(
+                        day.frVal
+                      )}`}
+                    >
+                      {day.frVal.toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-500">{day.poCount} POs raised</div>
+                  <div className="mt-2 flex items-baseline justify-between">
+                    <span className="text-xs font-extrabold text-slate-900">₹{L2(day.poVal)}L</span>
+                    <span
+                      className={`text-[11px] font-bold ${isCritical ? "text-rose-600" : "text-slate-500"
+                        }`}
+                    >
+                      Gap: ₹{L2(day.gapVal)}L
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${day.frVal >= 90
+                          ? "bg-emerald-500"
+                          : day.frVal >= 75
+                            ? "bg-amber-500"
+                            : "bg-purple-600"
+                        }`}
+                      style={{ width: `${Math.min(100, day.frVal)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -2867,7 +3302,10 @@ export default function DailyPoTrackerPage() {
                     const expiryDate = ymdToDate(r[13]);
                     const daysLeft = r[13] > 0 ? diffDays(nowYmd, r[13]) : null;
                     const expiryStatus = getExpiryStatus(daysLeft);
-                    const skuName = d.dims.sku[r[6]];
+                    const rawSkuName = d.dims.sku[r[6]];
+                    const mmd = mmdGroup(rawSkuName);
+                    const skuName = mmd.name || rawSkuName;
+                    const skuCode = mmd.code || "";
                     const city = d.dims.city[r[3]];
                     const category = d.dims.category[r[4]];
                     const status = d.dims.status[r[5]];
@@ -2878,7 +3316,7 @@ export default function DailyPoTrackerPage() {
                     const gapQty = Math.max(0, poQty - grnQty);
                     const gapVal = Math.max(0, poVal - grnVal);
                     const frVal = poVal > 0 ? (grnVal / poVal) * 100 : 0;
-                    const skuIcon = matchSkuIcon(skuName);
+                    const skuIcon = matchSkuIcon(skuName || rawSkuName);
 
                     return (
                       <tr key={idx} className="hover:bg-purple-50/40 transition-colors">
@@ -2937,9 +3375,21 @@ export default function DailyPoTrackerPage() {
                                 <span>🥛</span>
                               )}
                             </div>
-                            <span className="truncate font-semibold text-slate-800 group-hover:text-purple-700 transition">
-                              {skuName}
-                            </span>
+                            <div className="min-w-0">
+                              {skuCode && (
+                                <span className="inline-block font-mono text-[9px] font-bold px-1 rounded bg-purple-100 text-purple-800 mr-1">
+                                  {skuCode}
+                                </span>
+                              )}
+                              <span className="truncate font-semibold text-slate-800 group-hover:text-purple-700 transition" title={rawSkuName}>
+                                {skuName}
+                              </span>
+                              {skuName !== rawSkuName && (
+                                <span className="block text-[10px] text-slate-400 truncate" title={rawSkuName}>
+                                  {rawSkuName}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
 

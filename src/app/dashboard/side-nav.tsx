@@ -9,6 +9,9 @@ import { dateRangeLabel } from "@/lib/date-range";
 const items = [
   { href: "/dashboard", label: "Overview", icon: "▦" },
   { href: "/dashboard/priority-po", label: "Priority PO Dispatch", icon: "🚨" },
+  { href: "/dashboard/opportunity", label: "Opportunity Dashboard", icon: "🎯" },
+  { href: "/dashboard/trending-analysis", label: "Trending Analysis", icon: "📈" },
+  { href: "/dashboard/heatmap", label: "Heatmap Matrix", icon: "🔥" },
   { href: "/dashboard/full", label: "Full Dashboard", icon: "📊" },
   { href: "/dashboard/month-compare", label: "Month Comparison", icon: "🗓️" },
   { href: "/dashboard/reports", label: "Reports", icon: "📋" },
@@ -144,7 +147,7 @@ export default function SideNav({ email }: { email: string }) {
         <div className={`px-3 pt-4 text-[11px] font-semibold tracking-wider ${sectionLabel} uppercase`}>
           General
         </div>
-        <nav className="px-3 py-2 space-y-1">
+        <nav className="px-3 py-2 space-y-1 flex-1 overflow-y-auto min-h-0">
           {items.map((it) => {
             const active =
               it.href === "/dashboard" ? path === "/dashboard" : path.startsWith(it.href);
@@ -164,8 +167,6 @@ export default function SideNav({ email }: { email: string }) {
             );
           })}
         </nav>
-
-        <div className="flex-1" />
 
         {tradeRanges.length > 0 && (
           <div className="px-4 pb-3">

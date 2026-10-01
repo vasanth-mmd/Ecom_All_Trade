@@ -10,10 +10,13 @@ const TRADES = ["Amazon", "Blinkit", "Zepto", "Swiggy", "BigBasket", "Flipkart"]
 
 const MODULES = [
   { icon: "▦", title: "Overview", body: "Headline fill-rate numbers, trade performance and the monthly trend the moment you log in." },
-  { icon: "📊", title: "Full Dashboard", body: "Every chart, slicer and click-to-filter gap analysis in one screen." },
-  { icon: "📋", title: "Reports", body: "Detailed PO-level breakdowns, ready to slice by trade, city or SKU." },
   { icon: "⚡", title: "Priority PO Fill Center", body: "Real-time urgency ranking & pick lists to immediately dispatch upcoming expiring POs." },
-  { icon: "🧮", title: "FR % Summary", body: "City, SKU, Trade and Region fill-rate tables side by side, cross-filterable." },
+  { icon: "🎯", title: "Opportunity Dashboard", body: "Unfulfilled demand gap recovery simulator, profit gain modeling and MoM benchmarking." },
+  { icon: "📈", title: "Trending Analysis", body: "Longitudinal demand vs. supplied progression curves and SKU velocity telemetry across months." },
+  { icon: "🔥", title: "Heatmap Matrix", body: "Visual fulfillment intensity matrix across day cycles (1–10, 11–20, 21–31), categories and cities." },
+  { icon: "📊", title: "Full Dashboard", body: "Every chart, slicer and click-to-filter gap analysis in one screen." },
+  { icon: "🗓️", title: "Month Comparison", body: "Side-by-side comparative analysis of demand, supply and fill-rate variances." },
+  { icon: "📋", title: "Reports", body: "Detailed PO-level breakdowns, ready to slice by trade, city or SKU." },
   { icon: "🤖", title: "Jarvis AI", body: "Ask questions in plain language — Claude, GPT and Gemini can even work together on one answer." },
 ];
 
@@ -203,10 +206,15 @@ export default function HomePage() {
             <div className="font-black text-purple-950 mb-2.5">Dashboard</div>
             <ul className="space-y-1.5 font-semibold text-slate-600 text-xs">
               <li className="hover:text-purple-700 transition-colors cursor-pointer">Overview</li>
-              <li className="hover:text-purple-700 transition-colors cursor-pointer">Full Dashboard</li>
-              <li className="hover:text-purple-700 transition-colors cursor-pointer">Reports</li>
               <li className="hover:text-purple-700 transition-colors cursor-pointer">Priority PO Fill Center</li>
+              <li className="hover:text-purple-700 transition-colors cursor-pointer">Opportunity Dashboard</li>
+              <li className="hover:text-purple-700 transition-colors cursor-pointer">Trending Analysis</li>
+              <li className="hover:text-purple-700 transition-colors cursor-pointer">Heatmap Matrix</li>
+              <li className="hover:text-purple-700 transition-colors cursor-pointer">Full Dashboard</li>
+              <li className="hover:text-purple-700 transition-colors cursor-pointer">Month Comparison</li>
+              <li className="hover:text-purple-700 transition-colors cursor-pointer">Reports</li>
               <li className="hover:text-purple-700 transition-colors cursor-pointer">Daily PO & Gap Tracker</li>
+              <li className="hover:text-purple-700 transition-colors cursor-pointer">City SKU Performance</li>
               <li className="hover:text-purple-700 transition-colors cursor-pointer">FR % Summary</li>
             </ul>
           </div>

@@ -33,12 +33,12 @@ const L2 = (n: number) =>
   });
 
 const frPill = (fr: number) =>
-  "px-2 py-0.5 rounded-full text-xs font-semibold " +
+  "px-2.5 py-0.5 rounded-full text-xs font-black " +
   (fr >= 90
-    ? "bg-emerald-100 text-emerald-700"
+    ? "bg-emerald-100 text-emerald-950 border border-emerald-300"
     : fr >= 75
-      ? "bg-amber-100 text-amber-700"
-      : "bg-rose-100 text-rose-700");
+      ? "bg-amber-100 text-amber-950 border border-amber-300"
+      : "bg-rose-100 text-rose-950 border border-rose-300");
 
 const DATE_PRESETS = [
   { label: "7D", days: 7 },
@@ -671,14 +671,14 @@ export default function FrySummaryPage() {
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-slate-900">
+            <h1 className="text-2xl font-black text-black">
               FR Summary
             </h1>
 
             <SyncStatus />
           </div>
 
-          <div className="text-xs text-slate-500 mt-1">
+          <div className="text-xs text-black font-bold mt-1">
             State / SKU / Trade fill-rate summary ·
             values in ₹ Lakh ·{" "}
             {L(allCrossRows.length, 0)} lines in selection
@@ -691,12 +691,12 @@ export default function FrySummaryPage() {
       </div>
 
       {/* FILTER BAR */}
-      <div className="mt-4 bg-white border border-slate-200 rounded-xl p-3.5 shadow-sm">
+      <div className="mt-4 bg-white border border-slate-300 rounded-xl p-3.5 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
 
           {/* DATE RANGE */}
           <label className="text-xs w-full sm:w-auto">
-            <div className="text-[10px] font-semibold text-slate-500 tracking-wider mb-0.5">
+            <div className="text-[10px] font-bold text-black tracking-wider mb-0.5">
               PO DATE RANGE
             </div>
 
@@ -709,10 +709,10 @@ export default function FrySummaryPage() {
                 }
                 min={d.meta.date_min}
                 max={d.meta.date_max}
-                className="flex-1 min-w-0 sm:flex-none border border-slate-300 rounded-lg px-2 py-2 sm:py-1.5 text-sm sm:text-xs bg-white"
+                className="flex-1 min-w-0 sm:flex-none border border-slate-300 rounded-lg px-2 py-2 sm:py-1.5 text-sm sm:text-xs bg-white text-black font-bold"
               />
 
-              <span className="text-slate-400 shrink-0">
+              <span className="text-black font-bold shrink-0">
                 →
               </span>
 
@@ -724,7 +724,7 @@ export default function FrySummaryPage() {
                 }
                 min={d.meta.date_min}
                 max={d.meta.date_max}
-                className="flex-1 min-w-0 sm:flex-none border border-slate-300 rounded-lg px-2 py-2 sm:py-1.5 text-sm sm:text-xs bg-white"
+                className="flex-1 min-w-0 sm:flex-none border border-slate-300 rounded-lg px-2 py-2 sm:py-1.5 text-sm sm:text-xs bg-white text-black font-bold"
               />
             </span>
           </label>
@@ -737,7 +737,7 @@ export default function FrySummaryPage() {
                 onClick={() =>
                   applyPreset(p.days)
                 }
-                className="flex-1 sm:flex-none px-2 py-2 sm:py-1 rounded-md border border-slate-300 text-xs sm:text-[11px] font-semibold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300"
+                className="flex-1 sm:flex-none px-2 py-2 sm:py-1 rounded-md border border-slate-300 text-xs sm:text-[11px] font-bold text-black hover:bg-indigo-50 hover:border-indigo-400"
               >
                 {p.label}
               </button>
@@ -983,7 +983,7 @@ export default function FrySummaryPage() {
 
       {/* CROSS FILTER STATUS */}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-[11px] text-slate-500">
+        <span className="text-[11px] text-black font-semibold">
           Tip: click any row below to cross-filter
           the other tables · click it again to clear.
         </span>
@@ -991,7 +991,7 @@ export default function FrySummaryPage() {
         {activeChips.map((c) => (
           <span
             key={c.key}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 border border-indigo-300 text-xs font-black text-black"
           >
             {c.label}: {c.value}
 
@@ -1002,7 +1002,7 @@ export default function FrySummaryPage() {
                   [c.key]: null,
                 }))
               }
-              className="hover:text-indigo-900"
+              className="hover:text-rose-700 font-bold ml-0.5"
             >
               ✕
             </button>
@@ -1036,10 +1036,10 @@ export default function FrySummaryPage() {
           return (
             <div
               key={t.key}
-              className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+              className="bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden"
             >
-              <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-800">
+              <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50/80">
+                <h2 className="text-sm font-black text-black tracking-tight">
                   {t.title}
                 </h2>
 
@@ -1053,7 +1053,7 @@ export default function FrySummaryPage() {
                         )
                       }
                       title="Depo mapping is platform-specific"
-                      className="border border-slate-300 rounded-md px-1.5 py-1 text-[11px] font-semibold text-slate-700 bg-white"
+                      className="border border-slate-300 rounded-md px-1.5 py-1 text-[11px] font-bold text-black bg-white"
                     >
                       {d.dims.trade.map(
                         (tr, i) => (
@@ -1068,7 +1068,7 @@ export default function FrySummaryPage() {
                     </select>
                   )}
 
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] font-bold text-slate-800">
                     {L(t.rows.length, 0)}{" "}
                     {t.key === "depo"
                       ? "cities"
@@ -1077,17 +1077,17 @@ export default function FrySummaryPage() {
                   </span>
 
                   {/* Manual width +/- controls */}
-                  <span className="inline-flex items-center rounded-md border border-slate-300 overflow-hidden text-[11px] font-semibold">
+                  <span className="inline-flex items-center rounded-md border border-slate-300 bg-white overflow-hidden text-[11px] font-bold text-black">
                     <button
                       type="button"
                       onClick={() => adjustWidth(t.key, -TABLE_W_STEP)}
                       disabled={tableMinW[t.key] <= TABLE_W_MIN}
                       title="Decrease table width"
-                      className="px-2 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      className="px-2 py-1 text-black font-bold hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
                     >
                       −
                     </button>
-                    <span className="px-2 py-1 border-x border-slate-300 text-slate-500 select-none tabular-nums">
+                    <span className="px-2 py-1 border-x border-slate-300 text-black font-bold select-none tabular-nums">
                       {tableMinW[t.key]}px
                     </span>
                     <button
@@ -1095,7 +1095,7 @@ export default function FrySummaryPage() {
                       onClick={() => adjustWidth(t.key, TABLE_W_STEP)}
                       disabled={tableMinW[t.key] >= TABLE_W_MAX}
                       title="Increase table width"
-                      className="px-2 py-1 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      className="px-2 py-1 text-black font-bold hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
                     >
                       +
                     </button>
@@ -1111,7 +1111,7 @@ export default function FrySummaryPage() {
                         ? "Collapse to scrollable view"
                         : "Expand to show all rows"
                     }
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-slate-300 text-[11px] font-semibold text-slate-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-300 text-[11px] font-bold text-black bg-white hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-900 transition shadow-xs"
                   >
                     {isExpanded
                       ? "Collapse"
@@ -1128,11 +1128,11 @@ export default function FrySummaryPage() {
                 }
               >
                 <table
-                  className="w-full text-xs"
+                  className="w-full text-xs text-black font-semibold"
                   style={{ minWidth: tableMinW[t.key] }}
                 >
                   <thead className="sticky top-0 z-10">
-                    <tr className="text-left text-[11px] text-slate-600 bg-slate-100">
+                    <tr className="text-left text-[11px] text-black bg-slate-200/90 border-b border-slate-300 font-black">
                       {t.key === "sku" ? (
                         <SortTh
                           edge
@@ -1284,8 +1284,8 @@ export default function FrySummaryPage() {
                       />
                     </tr>
 
-                    <tr className="bg-indigo-50 border-b-2 border-indigo-200 font-bold text-slate-900">
-                      <td className="py-2 px-2">
+                    <tr className="bg-indigo-100/90 border-b-2 border-indigo-300 font-black text-black text-xs">
+                      <td className="py-2 px-2 font-black text-black">
                         TOTAL
                       </td>
 
@@ -1297,31 +1297,31 @@ export default function FrySummaryPage() {
                         </>
                       )}
 
-                      <td className="py-2 px-1.5 text-right">
+                      <td className="py-2 px-1.5 text-right font-black text-black tabular-nums">
                         {L(t.total.poCount, 0)}
                       </td>
 
-                      <td className="py-2 px-1.5 text-right">
+                      <td className="py-2 px-1.5 text-right font-black text-black tabular-nums">
                         {L(t.total.poQty, 0)}
                       </td>
 
-                      <td className="py-2 px-1.5 text-right">
+                      <td className="py-2 px-1.5 text-right font-black text-black tabular-nums">
                         {L2(t.total.poVal)}
                       </td>
 
-                      <td className="py-2 px-1.5 text-right">
+                      <td className="py-2 px-1.5 text-right font-black text-black tabular-nums">
                         {L(t.total.grnQty, 0)}
                       </td>
 
-                      <td className="py-2 px-1.5 text-right">
+                      <td className="py-2 px-1.5 text-right font-black text-black tabular-nums">
                         {L2(t.total.grnVal)}
                       </td>
 
-                      <td className="py-2 px-1.5 text-right text-rose-600">
+                      <td className="py-2 px-1.5 text-right font-black text-rose-700 tabular-nums">
                         {L2(t.total.gap)}
                       </td>
 
-                      <td className="py-2 px-2 text-right">
+                      <td className="py-2 px-2 text-right font-black text-black tabular-nums">
                         <span
                           className={frPill(
                             t.total.fr
@@ -1348,17 +1348,17 @@ export default function FrySummaryPage() {
                             )
                           }
                           className={
-                            "border-t border-slate-100 cursor-pointer transition " +
+                            "border-t border-slate-200/80 cursor-pointer transition font-bold text-black " +
                             (selected
-                              ? "bg-indigo-100 hover:bg-indigo-100"
+                              ? "bg-indigo-100 hover:bg-indigo-100 text-black"
                               : i % 2
-                                ? "bg-slate-50/50 hover:bg-indigo-50"
-                                : "hover:bg-indigo-50")
+                                ? "bg-slate-50 hover:bg-indigo-50/70 text-black"
+                                : "bg-white hover:bg-indigo-50/70 text-black")
                           }
                           title="Click to cross-filter the other tables"
                         >
                           {t.key === "sku" ? (
-                            <td className="py-1.5 px-2 text-slate-600">
+                            <td className="py-1.5 px-2 font-bold text-black">
                               {(() => {
                                 const icon =
                                   matchSkuIcon(
@@ -1427,7 +1427,7 @@ export default function FrySummaryPage() {
                                                   r.gap
                                                 ),
                                               cls:
-                                                "text-rose-600",
+                                                "text-rose-700 font-black",
                                             },
                                             {
                                               label:
@@ -1442,7 +1442,7 @@ export default function FrySummaryPage() {
                                           ],
                                         });
                                       }}
-                                      className="shrink-0 w-6 h-6 rounded-md bg-slate-50 border border-slate-200 grid place-items-center overflow-hidden hover:border-indigo-300 hover:ring-2 hover:ring-indigo-100 transition"
+                                      className="shrink-0 w-6 h-6 rounded-md bg-white border border-slate-300 grid place-items-center overflow-hidden hover:border-indigo-400 hover:ring-2 hover:ring-indigo-200 transition"
                                       title="Click to enlarge"
                                     >
                                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1453,58 +1453,58 @@ export default function FrySummaryPage() {
                                       />
                                     </button>
 
-                                    {r.mmdName}
+                                    <span className="font-bold text-black">{r.mmdName}</span>
                                   </span>
                                 ) : (
-                                  r.mmdName
+                                  <span className="font-bold text-black">{r.mmdName}</span>
                                 );
                               })()}
                             </td>
                           ) : t.key === "depo" ? (
                             <>
-                              <td className="py-1.5 px-2 font-medium text-slate-800">
+                              <td className="py-1.5 px-2 font-bold text-black">
                                 {r.delLocation}
                               </td>
 
-                              <td className="py-1.5 px-1.5 text-slate-600">
+                              <td className="py-1.5 px-1.5 font-bold text-black">
                                 {r.name}
                               </td>
 
-                              <td className="py-1.5 px-1.5 text-slate-600">
+                              <td className="py-1.5 px-1.5 font-bold text-black">
                                 {r.mmdCode}
                               </td>
 
-                              <td className="py-1.5 px-1.5 text-slate-600">
+                              <td className="py-1.5 px-1.5 font-bold text-black">
                                 {r.mmdName}
                               </td>
                             </>
                           ) : (
-                            <td className="py-1.5 px-2 font-medium text-slate-800">
+                            <td className="py-1.5 px-2 font-bold text-black">
                               {r.name}
                             </td>
                           )}
 
-                          <td className="py-1.5 px-1.5 text-right">
+                          <td className="py-1.5 px-1.5 text-right font-bold text-black tabular-nums">
                             {L(r.poCount, 0)}
                           </td>
 
-                          <td className="py-1.5 px-1.5 text-right">
+                          <td className="py-1.5 px-1.5 text-right font-bold text-black tabular-nums">
                             {L(r.poQty, 0)}
                           </td>
 
-                          <td className="py-1.5 px-1.5 text-right">
+                          <td className="py-1.5 px-1.5 text-right font-bold text-black tabular-nums">
                             {L2(r.poVal)}
                           </td>
 
-                          <td className="py-1.5 px-1.5 text-right">
+                          <td className="py-1.5 px-1.5 text-right font-bold text-black tabular-nums">
                             {L(r.grnQty, 0)}
                           </td>
 
-                          <td className="py-1.5 px-1.5 text-right">
+                          <td className="py-1.5 px-1.5 text-right font-bold text-black tabular-nums">
                             {L2(r.grnVal)}
                           </td>
 
-                          <td className="py-1.5 px-1.5 text-right font-semibold text-rose-600">
+                          <td className="py-1.5 px-1.5 text-right font-black text-rose-700 tabular-nums">
                             {L2(r.gap)}
                           </td>
 
@@ -1528,17 +1528,17 @@ export default function FrySummaryPage() {
         })}
       </div>
 
-      <div className="mt-3 text-xs text-slate-400">
+      <div className="mt-3 text-xs text-black font-bold">
         Colors:{" "}
-        <span className="text-emerald-600 font-semibold">
+        <span className="text-emerald-700 font-black">
           green ≥ 90%
         </span>{" "}
         ·{" "}
-        <span className="text-amber-600 font-semibold">
+        <span className="text-amber-700 font-black">
           yellow 75–90%
         </span>{" "}
         ·{" "}
-        <span className="text-rose-600 font-semibold">
+        <span className="text-rose-700 font-black">
           red &lt; 75%
         </span>
         . "State" uses the Region field from the
@@ -1580,11 +1580,11 @@ function SortTh({
     <th
       onClick={() => onSort(col)}
       className={
-        "py-2 " +
+        "py-2.5 " +
         (edge ? "px-2" : "px-1.5") +
         (align === "right" ? " text-right" : "") +
-        " font-semibold cursor-pointer select-none hover:text-indigo-700 " +
-        (active ? "text-indigo-700" : "")
+        " font-black uppercase text-black text-[11px] cursor-pointer select-none hover:text-indigo-900 transition-colors " +
+        (active ? "text-indigo-950 bg-indigo-200/70" : "")
       }
     >
       {label}
@@ -1632,17 +1632,17 @@ function MultiSel({
 
   return (
     <div className="relative text-xs z-40 w-full sm:w-auto">
-      <div className="text-[10px] font-semibold text-slate-500 tracking-wider mb-0.5">
+      <div className="text-[10px] font-bold text-black tracking-wider mb-0.5">
         {label}
       </div>
 
       <button
         onClick={onOpen}
         className={
-          "w-full sm:w-auto bg-white border rounded-lg px-2.5 py-2 sm:py-1.5 text-sm sm:text-xs sm:min-w-[110px] sm:max-w-[180px] text-left truncate " +
+          "w-full sm:w-auto bg-white border rounded-lg px-2.5 py-2 sm:py-1.5 text-sm sm:text-xs sm:min-w-[110px] sm:max-w-[180px] text-left truncate font-bold " +
           (selSet.size
-            ? "border-indigo-400 text-indigo-700 font-semibold"
-            : "border-slate-300 text-slate-700")
+            ? "border-indigo-600 text-indigo-950 font-black bg-indigo-50/50"
+            : "border-slate-400 text-black")
         }
       >
         {selSet.size === 0

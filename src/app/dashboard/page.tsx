@@ -353,8 +353,11 @@ export default function OverviewPage() {
               ⭳ Download raw data
             </a>
             <UploadButton variant="light" />
-            <Link href="/dashboard/month-compare" className="text-xs text-indigo-600 font-semibold hover:underline whitespace-nowrap">Month comparison →</Link>
-            <Link href="/dashboard/full" className="text-xs text-sky-600 hover:underline whitespace-nowrap">Full dashboard →</Link>
+            <Link href="/dashboard/opportunity" className="text-xs text-purple-700 font-bold hover:underline whitespace-nowrap">🎯 Opportunity →</Link>
+            <Link href="/dashboard/trending-analysis" className="text-xs text-sky-700 font-bold hover:underline whitespace-nowrap">📈 Trending →</Link>
+            <Link href="/dashboard/heatmap" className="text-xs text-amber-700 font-bold hover:underline whitespace-nowrap">🔥 Heatmap →</Link>
+            <Link href="/dashboard/month-compare" className="text-xs text-indigo-600 font-semibold hover:underline whitespace-nowrap">🗓️ Month comparison →</Link>
+            <Link href="/dashboard/full" className="text-xs text-slate-700 font-semibold hover:underline whitespace-nowrap">📊 Full dashboard →</Link>
           </div>
         </div>
       </div>
@@ -381,6 +384,167 @@ export default function OverviewPage() {
             accentClass="text-sky-700"
             barPct={calc.po ? (calc.grn / calc.po) * 100 : 0} barClass="bg-sky-500"
             barLabel="supplied" />
+        </div>
+      </Section>
+
+      {/* ---- SPECIALIZED DASHBOARDS & SUITE NAVIGATION ---- */}
+      <Section title="SPECIALIZED DASHBOARDS & ANALYTICS" icon="✨">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <Link
+            href="/dashboard/opportunity"
+            className="group relative bg-gradient-to-br from-purple-50 via-white to-indigo-50/40 hover:to-purple-100/50 border border-purple-200/80 hover:border-purple-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="w-9 h-9 rounded-xl bg-purple-600 text-white grid place-items-center text-lg shadow-sm shadow-purple-600/30 group-hover:scale-110 transition-transform">
+                  🎯
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 text-[10px] font-extrabold uppercase tracking-wider">
+                  Profit Engine
+                </span>
+              </div>
+              <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-purple-700 transition-colors">
+                Opportunity & Profit Recovery
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Simulate profit gain from unfulfilled demand gaps and compare MoM recovery opportunities by SKU, City & Category.
+              </p>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-purple-100 flex items-center justify-between text-xs font-bold text-purple-700">
+              <span>Open Opportunity Suite</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/trending-analysis"
+            className="group relative bg-gradient-to-br from-sky-50 via-white to-cyan-50/40 hover:to-sky-100/50 border border-sky-200/80 hover:border-sky-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="w-9 h-9 rounded-xl bg-sky-600 text-white grid place-items-center text-lg shadow-sm shadow-sky-600/30 group-hover:scale-110 transition-transform">
+                  📈
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 text-[10px] font-extrabold uppercase tracking-wider">
+                  MoM Velocity
+                </span>
+              </div>
+              <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-sky-700 transition-colors">
+                Trending Analysis
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Longitudinal telemetry curves tracking Demand vs. Supplied progression, shortfall trajectory, and SKU speed.
+              </p>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-sky-100 flex items-center justify-between text-xs font-bold text-sky-700">
+              <span>Open Trending Curves</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/heatmap"
+            className="group relative bg-gradient-to-br from-amber-50 via-white to-orange-50/40 hover:to-amber-100/50 border border-amber-200/80 hover:border-amber-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="w-9 h-9 rounded-xl bg-amber-600 text-white grid place-items-center text-lg shadow-sm shadow-amber-600/30 group-hover:scale-110 transition-transform">
+                  🔥
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase tracking-wider">
+                  Cycle Matrix
+                </span>
+              </div>
+              <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-amber-700 transition-colors">
+                Heatmap Matrix
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Multi-dimensional fulfillment intensity across 10-day cycles (1–10, 11–20, 21–31), City, and Category matrix.
+              </p>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-amber-100 flex items-center justify-between text-xs font-bold text-amber-700">
+              <span>Open Heatmap Matrix</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/priority-po"
+            className="group relative bg-gradient-to-br from-rose-50 via-white to-pink-50/40 hover:to-rose-100/50 border border-rose-200/80 hover:border-rose-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="w-9 h-9 rounded-xl bg-rose-600 text-white grid place-items-center text-lg shadow-sm shadow-rose-600/30 group-hover:scale-110 transition-transform">
+                  🚨
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-extrabold uppercase tracking-wider">
+                  Urgent Dispatch
+                </span>
+              </div>
+              <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-rose-700 transition-colors">
+                Priority PO Dispatch
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Real-time urgency ranking & pick lists to immediately dispatch upcoming expiring POs and urgent SKU gaps.
+              </p>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-rose-100 flex items-center justify-between text-xs font-bold text-rose-700">
+              <span>Open Priority Queue</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/month-compare"
+            className="group relative bg-gradient-to-br from-indigo-50 via-white to-blue-50/40 hover:to-indigo-100/50 border border-indigo-200/80 hover:border-indigo-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="w-9 h-9 rounded-xl bg-indigo-600 text-white grid place-items-center text-lg shadow-sm shadow-indigo-600/30 group-hover:scale-110 transition-transform">
+                  🗓️
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-extrabold uppercase tracking-wider">
+                  MoM Comparison
+                </span>
+              </div>
+              <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-indigo-700 transition-colors">
+                Month Comparison
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Side-by-side comparative analysis of demand, supplied value, and fill-rate variances across any 2 months.
+              </p>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-indigo-100 flex items-center justify-between text-xs font-bold text-indigo-700">
+              <span>Open Month Comparison</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/full"
+            className="group relative bg-gradient-to-br from-slate-50 via-white to-slate-100/40 hover:to-slate-100 border border-slate-200 hover:border-slate-400 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="w-9 h-9 rounded-xl bg-slate-700 text-white grid place-items-center text-lg shadow-sm shadow-slate-700/30 group-hover:scale-110 transition-transform">
+                  📊
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[10px] font-extrabold uppercase tracking-wider">
+                  Deep Intelligence
+                </span>
+              </div>
+              <h3 className="text-sm font-extrabold text-slate-900 group-hover:text-slate-800 transition-colors">
+                Full Intelligence Dashboard
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Multi-dimensional slicers, cross-filtering, SKU × City breakdown tables, and raw data export engine.
+              </p>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between text-xs font-bold text-slate-700">
+              <span>Open Full Dashboard</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </Link>
         </div>
       </Section>
 
