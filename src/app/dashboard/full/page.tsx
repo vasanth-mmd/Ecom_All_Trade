@@ -241,17 +241,8 @@ export default function FullDashboardPage() {
         setD(data);
         setErr("");
         if (data?.meta?.date_max) {
-          const max = data.meta.date_max as string;
-          setFFrom((prev) => prev || max.slice(0, 7) + "-01");
-          setFTo((prev) => prev || max);
-        }
-        // Default 3 Core Statuses pre-selected (EXPIRED, COMPLETED, GRN_DONE)
-        if (data?.dims?.status) {
-          const default3 = data.dims.status.filter((s: string) => {
-            const up = s.trim().toUpperCase();
-            return up === "EXPIRED" || up === "COMPLETED" || up === "GRN_DONE";
-          });
-          if (default3.length > 0) setSelStatuses((prev) => (prev.length === 0 ? default3 : prev));
+          setFFrom("");
+          setFTo("");
         }
       })
       .catch((e) => setErr(String(e.message || e)));

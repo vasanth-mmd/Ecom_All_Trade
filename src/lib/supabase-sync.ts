@@ -1,39 +1,5 @@
 import { getServiceSupabase } from "@/lib/supabase";
-import { normalizeStatus } from "@/lib/dataset";
-
-const MONTH_ABBR: Record<string, number> = {
-  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
-  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
-};
-
-function toYMD(v: any): number {
-  if (typeof v === "number" && v > 20000 && v < 60000) {
-    const days = Math.floor(v);
-    const dt = new Date(Math.round((days - 25569) * 86400 * 1000));
-    return dt.getUTCFullYear() * 10000 + (dt.getUTCMonth() + 1) * 100 + dt.getUTCDate();
-  }
-  if (v instanceof Date && !isNaN(+v)) {
-    let d = v;
-    if (d.getUTCHours() >= 12) d = new Date(v.getTime() + 6 * 3600 * 1000);
-    return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
-  }
-  const s = String(v ?? "").trim();
-  if (!s) return 0;
-  let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (m) return +m[1] * 10000 + +m[2] * 100 + +m[3];
-  m = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-  if (m) return +m[3] * 10000 + +m[2] * 100 + +m[1];
-  m = s.match(/^(\d{1,2})[- ]([A-Za-z]{3,9})[- ](\d{4})/);
-  if (m) {
-    const mon = MONTH_ABBR[m[2].slice(0, 3).toLowerCase()];
-    if (mon) return +m[3] * 10000 + mon * 100 + +m[1];
-  }
-  const d = new Date(s);
-  if (isNaN(+d)) return 0;
-  let adj = d;
-  if (adj.getUTCHours() >= 12) adj = new Date(d.getTime() + 6 * 3600 * 1000);
-  return adj.getUTCFullYear() * 10000 + (adj.getUTCMonth() + 1) * 100 + adj.getUTCDate();
-}
+import { normalizeStatus, toYMD } from "@/lib/dataset";
 
 function fmtYMD(n: number): string | null {
   if (!n || n < 10000000) return null;
@@ -78,29 +44,43 @@ export async function syncRecordsToSupabase(records: any[]) {
   if (!records || !records.length) return;
   const supabase = getServiceSupabase();
 
-  const formattedRows = records.map((rec) => {
-    const poDateNum = toYMD(rec["Po Date"] ?? rec["PO Date"] ?? rec["Date"] ?? rec["po_date"] ?? "");
-    const expDateNum = toYMD(rec["Po Expiry Date"] ?? rec["PO Expiry Date"] ?? rec["Expiry Date"] ?? rec["po_expiry_date"] ?? "");
+  const formattedRows = records.map((rawRec) => {
+    const cleanMap: Record<string, any> = {};
+    for (const k of Object.keys(rawRec)) {
+      cleanMap[k.toLowerCase().replace(/[\s_-]+/g, "")] = rawRec[k];
+    }
+    const lookup = (candidates: string[]): any => {
+      for (const cand of candidates) {
+        const cKey = cand.toLowerCase().replace(/[\s_-]+/g, "");
+        if (cKey in cleanMap && cleanMap[cKey] !== undefined && cleanMap[cKey] !== "") {
+          return cleanMap[cKey];
+        }
+      }
+      return "";
+    };
+
+    const poDateNum = toYMD(lookup(["Po Date", "PO Date", "Date", "po_date", "Order Date"]));
+    const expDateNum = toYMD(lookup(["Po Expiry Date", "PO Expiry Date", "Expiry Date", "po_expiry_date", "Expiry"]));
 
     return {
-      po_number: String(rec["PO Number"] ?? rec["Po Number"] ?? rec["po_number"] ?? "").trim(),
+      po_number: String(lookup(["PO Number", "Po Number", "po_number", "PO", "PONo"])).trim(),
       po_date: fmtYMD(poDateNum),
       po_date_num: poDateNum || null,
-      month: String(rec["Month"] ?? rec["month"] ?? "").trim() || "Unknown",
+      month: String(lookup(["Month", "month", "MONTH"])).trim() || "Unknown",
       po_expiry_date: fmtYMD(expDateNum),
-      city: String(rec["City"] ?? rec["city"] ?? "").trim(),
-      item_code: String(rec["Item Code"] ?? rec["item_code"] ?? "").trim(),
-      sku_name: String(rec["SKU Name"] ?? rec["Sku Name"] ?? rec["sku_name"] ?? rec["SKU"] ?? "").trim() || "(Blank)",
-      category: String(rec["Category"] ?? rec["category"] ?? "").trim(),
-      po_qty: parseNum(rec["PO Qty"] ?? rec["Po Qty"] ?? rec["po_qty"] ?? 0),
-      po_value: parseNum(rec["Po Value"] ?? rec["PO Value"] ?? rec["po_value"] ?? 0),
-      po_status: normalizeStatus(rec["PO Status"] ?? rec["Po Status"] ?? rec["po_status"] ?? ""),
-      grn_qty: parseNum(rec["GRN Qty"] ?? rec["Grn Qty"] ?? rec["grn_qty"] ?? 0),
-      grn_value: parseNum(rec["GRN Value"] ?? rec["Grn Value"] ?? rec["grn_value"] ?? 0),
-      trade: String(rec["Trade"] ?? rec["trade"] ?? "").trim() || "Unknown",
-      region: String(rec["Region"] ?? rec["region"] ?? "").trim(),
-      mmd_item_code: String(rec["MMD Item Code"] ?? rec["mmd_item_code"] ?? "").trim(),
-      mmd_sku_name: String(rec["MMD SKU name"] ?? rec["MMD Sku Name"] ?? rec["mmd_sku_name"] ?? "").trim(),
+      city: String(lookup(["City", "city"])).trim(),
+      item_code: String(lookup(["Item Code", "item_code", "ItemCode"])).trim(),
+      sku_name: String(lookup(["SKU Name", "Sku Name", "sku_name", "SKU", "Item Name"])).trim() || "(Blank)",
+      category: String(lookup(["Category", "category"])).trim(),
+      po_qty: parseNum(lookup(["PO Qty", "Po Qty", "po_qty", "Ordered Qty", "Qty"])),
+      po_value: parseNum(lookup(["Po Value", "PO Value", "po_value", "PO Val"])),
+      po_status: normalizeStatus(lookup(["PO Status", "Po Status", "po_status", "Status"])),
+      grn_qty: parseNum(lookup(["GRN Qty", "Grn Qty", "grn_qty", "Received Qty"])),
+      grn_value: parseNum(lookup(["GRN Value", "Grn Value", "grn_value", "GRN Val"])),
+      trade: String(lookup(["Trade", "trade", "Customer"])).trim() || "Unknown",
+      region: String(lookup(["Region", "region", "Zone"])).trim(),
+      mmd_item_code: String(lookup(["MMD Item Code", "mmd_item_code"])).trim(),
+      mmd_sku_name: String(lookup(["MMD SKU name", "MMD Sku Name", "mmd_sku_name"])).trim(),
     };
   });
 

@@ -635,8 +635,8 @@ export default function HeatmapTrendsPage() {
   const [activeMetric, setActiveMetric] = useState<MetricType>("fr");
   
   // Multi-Select & Date Range Filters
-  const [startDate, setStartDate] = useState<string>("2026-09-01");
-  const [endDate, setEndDate] = useState<string>("2026-09-29");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [selectedTrades, setSelectedTrades] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
@@ -1835,8 +1835,8 @@ export default function HeatmapTrendsPage() {
             <button
               type="button"
               onClick={() => {
-                setStartDate("2026-09-01");
-                setEndDate("2026-09-29");
+                setStartDate("");
+                setEndDate("");
                 setSelectedMonths([]);
                 setSelectedTrades([]);
                 setSelectedCities([]);

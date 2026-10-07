@@ -174,20 +174,30 @@ export async function POST(req: Request) {
         });
       }
 
-      // Pre-processed dataset direct push
-      if (body.dataset && body.records) {
+      // Action: Direct dataset push from client-side compiler
+      if (body.action === "dataset" || body.dataset) {
+        const data: Dataset = body.dataset;
+        if (!data || !data.rows || !data.dims) {
+          return NextResponse.json({ error: "Invalid dataset payload" }, { status: 400 });
+        }
+        const savedFileName = body.fileName || "trade_fr_raw_data.xlsx";
         try {
           await clearSupabaseTradeOrders();
         } catch {}
-        const data: Dataset = body.dataset;
+
         await saveDataset(data, "upload");
-        try {
-          syncRecordsToSupabase(body.records).catch(() => {});
-        } catch (e) {}
+
+        if (body.records && Array.isArray(body.records)) {
+          try {
+            syncRecordsToSupabase(body.records).catch(() => {});
+          } catch (e) {}
+        }
+
         return NextResponse.json({
           ok: true,
           meta: data.meta,
-          message: `Saved ${data.meta.rows.toLocaleString("en-IN")} rows directly into data.json & data.js.`,
+          storedFile: savedFileName,
+          message: `Successfully saved ${data.meta.rows.toLocaleString("en-IN")} rows directly into data.json & data.js files.`,
         });
       }
     }

@@ -342,9 +342,8 @@ export default function DataSourcePage() {
         setD(data);
         setErr("");
         if (data?.meta?.date_max) {
-          const max = data.meta.date_max as string;
-          setFFrom((prev) => prev || max.slice(0, 7) + "-01");
-          setFTo((prev) => prev || max);
+          setFFrom("");
+          setFTo("");
         }
       })
       .catch((e) => setErr(String(e.message || e)));

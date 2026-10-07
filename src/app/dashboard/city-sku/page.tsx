@@ -293,19 +293,8 @@ export default function CitySkuDashboardPage() {
         setD(data);
         setErr("");
         if (data?.meta?.date_max) {
-          const max = data.meta.date_max as string;
-          setFFrom((prev) => prev || max.slice(0, 7) + "-01");
-          setFTo((prev) => prev || max);
-        }
-        // Pre-select 3 finalized statuses by default if not set
-        if (data?.dims?.status) {
-          const coreStatuses = ["EXPIRED", "COMPLETED", "GRN_DONE"];
-          const available = data.dims.status.filter((s: string) =>
-            coreStatuses.includes(s.trim().toUpperCase())
-          );
-          if (available.length > 0) {
-            setSelStatuses((prev) => (prev.length === 0 ? available : prev));
-          }
+          setFFrom("");
+          setFTo("");
         }
       })
       .catch((e) => setErr(String(e.message || e)));

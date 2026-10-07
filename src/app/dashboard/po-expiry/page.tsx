@@ -60,8 +60,25 @@ type UrgencyKey = (typeof URGENCY)[number]["key"];
    pipeline" states. Matching is done on a normalized (upper-case,
    space/dash → underscore) status label so it doesn't matter whether the
    sheet stores "GRN Done", "grn-done", or "GRN_DONE". */
-const STATUS_GROUP_A = new Set(["COMPLETED", "EXPIRED", "GRN_DONE"]);
-const STATUS_GROUP_B = new Set(["PENDING_ACKNOWLEDGEMENT", "ASN_CREATED", "CANCELLED"]);
+const STATUS_GROUP_A = new Set([
+  "COMPLETED",
+  "EXPIRED",
+  "GRN_DONE",
+  "FULLY_SUPPLIED_PO",
+  "FULLY_SUPPLIED",
+  "PO_FULLY_SUPPLIED",
+]);
+const STATUS_GROUP_B = new Set([
+  "PENDING_ACKNOWLEDGEMENT",
+  "ASN_CREATED",
+  "CANCELLED",
+  "PARTIALLY_SUPPLIED_PO",
+  "PARTIALLY_SUPPLIED",
+  "PO_PARTIALLY_SUPPLIED",
+  "ZERO_SUPPLY_PO",
+  "ZERO_SUPPLY",
+  "UNSUPPLIED",
+]);
 const normStatus = (s: string) => s.trim().toUpperCase().replace(/[\s-]+/g, "_");
 
 function statusOf(daysLeft: number | null) {
@@ -97,13 +114,20 @@ function chipUrgencyCls(daysLeft: number | null) {
    (Fully Supplied / Partially Supplied / Zero Supply / Expired), separate
    from the expiry-date STATUS column above which is purely days-left math. */
 function supplyStatusCls(label: string) {
-  switch (label) {
-    case "Fully Supplied": return "bg-emerald-100 text-emerald-700";
-    case "Partially Supplied": return "bg-amber-100 text-amber-700";
-    case "Zero Supply": return "bg-rose-100 text-rose-700";
-    case "Expired": return "bg-slate-200 text-slate-600";
-    default: return "bg-slate-100 text-slate-500";
+  const lower = String(label || "").toLowerCase();
+  if (lower.includes("fully") || lower.includes("completed") || lower.includes("grn done")) {
+    return "bg-emerald-100 text-emerald-700";
   }
+  if (lower.includes("partial")) {
+    return "bg-amber-100 text-amber-700";
+  }
+  if (lower.includes("zero") || lower.includes("unsupplied")) {
+    return "bg-rose-100 text-rose-700";
+  }
+  if (lower.includes("expired")) {
+    return "bg-slate-200 text-slate-600";
+  }
+  return "bg-slate-100 text-slate-500";
 }
 
 const POLL_MS = 30_000;
@@ -495,11 +519,16 @@ function PoPane({ title, pos, d, group, setImgPopup, setSkuPopup }: any) {
   const [onlyGap, setOnlyGap] = useState(true);
   const [sortKey, setSortKey] = useState<"days" | "gapVal">("days");
 
+  const isGroupA = group === STATUS_GROUP_A;
   // This pane's slice of POs, restricted to its status group before any
   // other filter is applied.
   const groupPos = useMemo(
-    () => pos.filter((p: any) => group.has(normStatus(d.dims.status[p.status] || ""))),
-    [pos, d, group]
+    () =>
+      pos.filter((p: any) => {
+        const n = normStatus(d?.dims?.status?.[p.status] || "");
+        return isGroupA ? STATUS_GROUP_A.has(n) : (!STATUS_GROUP_A.has(n) || STATUS_GROUP_B.has(n));
+      }),
+    [pos, d, isGroupA]
   );
 
   // Cities present within this pane's slice, for a right-sized CITY dropdown.

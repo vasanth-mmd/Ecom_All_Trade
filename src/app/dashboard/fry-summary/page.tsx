@@ -244,6 +244,8 @@ export default function FrySummaryPage() {
     }));
 
   const [depoPlatform, setDepoPlatform] = useState<number | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!d || depoPlatform !== null) return;
@@ -666,6 +668,379 @@ export default function FrySummaryPage() {
       };
     });
 
+  const fmtYMD = (n: number) =>
+    n ? `${String(n).slice(0, 4)}-${String(n).slice(4, 6)}-${String(n).slice(6, 8)}` : "";
+
+  const getFileDateTag = () => {
+    if (fFrom && fTo) return `_${fFrom}_to_${fTo}`;
+    if (fFrom) return `_from_${fFrom}`;
+    if (fTo) return `_to_${fTo}`;
+    if (d?.meta?.date_min && d?.meta?.date_max) return `_${d.meta.date_min}_to_${d.meta.date_max}`;
+    return "";
+  };
+
+  const getTableExportRows = (t: (typeof tables)[number]) => {
+    const isSku = t.key === "sku";
+    const isDepo = t.key === "depo";
+
+    const rows: Record<string, any>[] = t.rows.map((r, i) => {
+      if (isSku) {
+        return {
+          "S.No": i + 1,
+          "MMD SKU Name": r.mmdName,
+          "MMD Item Code": r.mmdCode || "—",
+          "Raw SKU Name": r.name,
+          "PO Count": r.poCount,
+          "PO Qty": r.poQty,
+          "PO Value (₹ Lakh)": +r.poVal.toFixed(2),
+          "GRN Qty": r.grnQty,
+          "GRN Value (₹ Lakh)": +r.grnVal.toFixed(2),
+          "Gap Value (₹ Lakh)": +r.gap.toFixed(2),
+          "Fill Rate %": +r.fr.toFixed(1),
+        };
+      }
+      if (isDepo) {
+        return {
+          "S.No": i + 1,
+          "Delivery Location": r.delLocation,
+          "City": r.name,
+          "Depo Code": r.mmdCode,
+          "State": r.mmdName,
+          "PO Count": r.poCount,
+          "PO Qty": r.poQty,
+          "PO Value (₹ Lakh)": +r.poVal.toFixed(2),
+          "GRN Qty": r.grnQty,
+          "GRN Value (₹ Lakh)": +r.grnVal.toFixed(2),
+          "Gap Value (₹ Lakh)": +r.gap.toFixed(2),
+          "Fill Rate %": +r.fr.toFixed(1),
+        };
+      }
+      return {
+        "S.No": i + 1,
+        [t.nameCol]: r.name,
+        "PO Count": r.poCount,
+        "PO Qty": r.poQty,
+        "PO Value (₹ Lakh)": +r.poVal.toFixed(2),
+        "GRN Qty": r.grnQty,
+        "GRN Value (₹ Lakh)": +r.grnVal.toFixed(2),
+        "Gap Value (₹ Lakh)": +r.gap.toFixed(2),
+        "Fill Rate %": +r.fr.toFixed(1),
+      };
+    });
+
+    // Append TOTAL row
+    if (isSku) {
+      rows.push({
+        "S.No": "" as any,
+        "MMD SKU Name": "TOTAL",
+        "MMD Item Code": "",
+        "Raw SKU Name": "",
+        "PO Count": t.total.poCount,
+        "PO Qty": t.total.poQty,
+        "PO Value (₹ Lakh)": +t.total.poVal.toFixed(2),
+        "GRN Qty": t.total.grnQty,
+        "GRN Value (₹ Lakh)": +t.total.grnVal.toFixed(2),
+        "Gap Value (₹ Lakh)": +t.total.gap.toFixed(2),
+        "Fill Rate %": +t.total.fr.toFixed(1),
+      });
+    } else if (isDepo) {
+      rows.push({
+        "S.No": "" as any,
+        "Delivery Location": "TOTAL",
+        "City": "",
+        "Depo Code": "",
+        "State": "",
+        "PO Count": t.total.poCount,
+        "PO Qty": t.total.poQty,
+        "PO Value (₹ Lakh)": +t.total.poVal.toFixed(2),
+        "GRN Qty": t.total.grnQty,
+        "GRN Value (₹ Lakh)": +t.total.grnVal.toFixed(2),
+        "Gap Value (₹ Lakh)": +t.total.gap.toFixed(2),
+        "Fill Rate %": +t.total.fr.toFixed(1),
+      });
+    } else {
+      rows.push({
+        "S.No": "" as any,
+        [t.nameCol]: "TOTAL",
+        "PO Count": t.total.poCount,
+        "PO Qty": t.total.poQty,
+        "PO Value (₹ Lakh)": +t.total.poVal.toFixed(2),
+        "GRN Qty": t.total.grnQty,
+        "GRN Value (₹ Lakh)": +t.total.grnVal.toFixed(2),
+        "Gap Value (₹ Lakh)": +t.total.gap.toFixed(2),
+        "Fill Rate %": +t.total.fr.toFixed(1),
+      });
+    }
+
+    return rows;
+  };
+
+  const getFilterSummaryRows = () => {
+    if (!d) return [];
+
+    const totalPoCount = new Set(allCrossRows.map((r) => r[12])).size;
+    const totalPoQty = allCrossRows.reduce((sum, r) => sum + r[7], 0);
+    const totalPoVal = allCrossRows.reduce((sum, r) => sum + r[8], 0);
+    const totalGrnQty = allCrossRows.reduce((sum, r) => sum + r[9], 0);
+    const totalGrnVal = allCrossRows.reduce((sum, r) => sum + r[10], 0);
+    const totalGap = totalPoVal - totalGrnVal;
+    const totalFr = totalPoVal ? (totalGrnVal / totalPoVal) * 100 : 0;
+
+    return [
+      { Parameter: "Report Title", Value: "Milky Mist Trade FR % Summary Report" },
+      { Parameter: "Export Date & Time", Value: new Date().toLocaleString("en-IN") },
+      {
+        Parameter: "PO Date Filter",
+        Value: fFrom || fTo ? `${fFrom || d.meta.date_min} to ${fTo || d.meta.date_max}` : `All (${d.meta.date_min} to ${d.meta.date_max})`,
+      },
+      { Parameter: "Month Filter", Value: sel.month.length ? sel.month.map((i) => d.dims.month[i]).join(", ") : "All Months" },
+      { Parameter: "Trade Filter", Value: sel.trade.length ? sel.trade.map((i) => d.dims.trade[i]).join(", ") : "All Trades" },
+      { Parameter: "Region / State Filter", Value: sel.region.length ? sel.region.map((i) => d.dims.region[i]).join(", ") : "All Regions" },
+      { Parameter: "City Filter", Value: sel.city.length ? sel.city.map((i) => d.dims.city[i]).join(", ") : "All Cities" },
+      { Parameter: "Category Filter", Value: sel.category.length ? sel.category.map((i) => d.dims.category[i]).join(", ") : "All Categories" },
+      { Parameter: "Status Filter", Value: sel.status.length ? sel.status.map((i) => d.dims.status[i]).join(", ") : "All Statuses" },
+      { Parameter: "SKU Filter", Value: sel.sku.length ? sel.sku.map((i) => d.dims.sku[i]).join(", ") : "All SKUs" },
+      { Parameter: "Active Cross-Filters", Value: activeChips.length ? activeChips.map((c) => `${c.label}: ${c.value}`).join(" | ") : "None" },
+      { Parameter: "Filtered Row Count", Value: allCrossRows.length },
+      { Parameter: "Unique PO Count", Value: totalPoCount },
+      { Parameter: "Total PO Qty", Value: totalPoQty },
+      { Parameter: "Total PO Value (₹ Lakh)", Value: +totalPoVal.toFixed(2) },
+      { Parameter: "Total GRN Qty", Value: totalGrnQty },
+      { Parameter: "Total GRN Value (₹ Lakh)", Value: +totalGrnVal.toFixed(2) },
+      { Parameter: "Total Gap Value (₹ Lakh)", Value: +totalGap.toFixed(2) },
+      { Parameter: "Overall Fill Rate %", Value: +totalFr.toFixed(1) },
+    ];
+  };
+
+  const exportAllSummaryWorkbook = async () => {
+    if (!d || !tables) return;
+    setExporting("summary-all");
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.utils.book_new();
+
+      for (const t of tables) {
+        const sheetRows = getTableExportRows(t);
+        const ws = XLSX.utils.json_to_sheet(sheetRows);
+        const cleanName = t.title.replace(" Fill Rate", "").replace(/[:\\\/\?\*\[\]]/g, "-").slice(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, cleanName);
+      }
+
+      XLSX.writeFile(wb, `FR_Summary_Tables${getFileDateTag()}.xlsx`);
+    } catch (e: any) {
+      alert("Failed to export summary workbook: " + (e?.message || e));
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const exportFullComprehensiveWorkbook = async () => {
+    if (!d || !tables) return;
+    setExporting("master-all");
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.utils.book_new();
+
+      // 1. Overview Sheet
+      const overviewRows = getFilterSummaryRows();
+      const wsOverview = XLSX.utils.json_to_sheet(overviewRows);
+      XLSX.utils.book_append_sheet(wb, wsOverview, "Report Overview");
+
+      // 2. 6 Summary Table Sheets
+      for (const t of tables) {
+        const sheetRows = getTableExportRows(t);
+        const ws = XLSX.utils.json_to_sheet(sheetRows);
+        const cleanName = t.title.replace(" Fill Rate", "").replace(/[:\\\/\?\*\[\]]/g, "-").slice(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, cleanName);
+      }
+
+      // 3. Raw Filtered Line Items Sheet
+      const rawData = allCrossRows.map((r, i) => {
+        const poVal = r[8] || 0;
+        const grnVal = r[10] || 0;
+        const gapVal = poVal - grnVal;
+        const fr = poVal ? (grnVal / poVal) * 100 : 0;
+
+        return {
+          "S.No": i + 1,
+          "PO ID": r[12],
+          "PO Date": fmtYMD(r[11]),
+          "Month": d.dims.month[r[0]] || "",
+          "Trade": d.dims.trade[r[1]] || "",
+          "Region": d.dims.region[r[2]] || "",
+          "City": d.dims.city[r[3]] || "",
+          "Category": d.dims.category[r[4]] || "",
+          "SKU Name": d.dims.sku[r[6]] || "",
+          "MMD Item Code": skuGroupCode[r[6]] || "—",
+          "MMD SKU Name": skuGroupName[r[6]] || d.dims.sku[r[6]] || "",
+          "PO Status": d.dims.status[r[5]] || "",
+          "PO Qty": r[7],
+          "PO Value (₹ Lakh)": +poVal.toFixed(2),
+          "GRN Qty": r[9],
+          "GRN Value (₹ Lakh)": +grnVal.toFixed(2),
+          "Gap Value (₹ Lakh)": +gapVal.toFixed(2),
+          "Fill Rate %": +fr.toFixed(1),
+        };
+      });
+
+      const wsRaw = XLSX.utils.json_to_sheet(rawData);
+      XLSX.utils.book_append_sheet(wb, wsRaw, "Raw PO Line Items");
+
+      XLSX.writeFile(wb, `FR_Master_Report_All_In_One${getFileDateTag()}.xlsx`);
+    } catch (e: any) {
+      alert("Failed to export master report: " + (e?.message || e));
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const exportFilteredRawDataXlsx = async () => {
+    if (!d || allCrossRows.length === 0) {
+      alert("No data available to export under current filters.");
+      return;
+    }
+    setExporting("raw-xlsx");
+    try {
+      const XLSX = await import("xlsx");
+      const rawData = allCrossRows.map((r, i) => {
+        const poVal = r[8] || 0;
+        const grnVal = r[10] || 0;
+        const gapVal = poVal - grnVal;
+        const fr = poVal ? (grnVal / poVal) * 100 : 0;
+
+        return {
+          "S.No": i + 1,
+          "PO ID": r[12],
+          "PO Date": fmtYMD(r[11]),
+          "Month": d.dims.month[r[0]] || "",
+          "Trade": d.dims.trade[r[1]] || "",
+          "Region": d.dims.region[r[2]] || "",
+          "City": d.dims.city[r[3]] || "",
+          "Category": d.dims.category[r[4]] || "",
+          "SKU Name": d.dims.sku[r[6]] || "",
+          "MMD Item Code": skuGroupCode[r[6]] || "—",
+          "MMD SKU Name": skuGroupName[r[6]] || d.dims.sku[r[6]] || "",
+          "PO Status": d.dims.status[r[5]] || "",
+          "PO Qty": r[7],
+          "PO Value (₹ Lakh)": +poVal.toFixed(2),
+          "GRN Qty": r[9],
+          "GRN Value (₹ Lakh)": +grnVal.toFixed(2),
+          "Gap Value (₹ Lakh)": +gapVal.toFixed(2),
+          "Fill Rate %": +fr.toFixed(1),
+        };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rawData);
+      XLSX.utils.book_append_sheet(wb, ws, "Filtered Raw Data");
+      XLSX.writeFile(wb, `FR_Raw_Data_Filtered${getFileDateTag()}.xlsx`);
+    } catch (e: any) {
+      alert("Failed to export raw data: " + (e?.message || e));
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const exportFilteredRawDataCsv = () => {
+    if (!d || allCrossRows.length === 0) {
+      alert("No data available to export under current filters.");
+      return;
+    }
+    setExporting("raw-csv");
+    try {
+      const headers = [
+        "S.No",
+        "PO ID",
+        "PO Date",
+        "Month",
+        "Trade",
+        "Region",
+        "City",
+        "Category",
+        "SKU Name",
+        "MMD Item Code",
+        "MMD SKU Name",
+        "PO Status",
+        "PO Qty",
+        "PO Value (₹ Lakh)",
+        "GRN Qty",
+        "GRN Value (₹ Lakh)",
+        "Gap Value (₹ Lakh)",
+        "Fill Rate %"
+      ];
+
+      const escapeCsv = (val: any) => {
+        if (val === null || val === undefined) return "";
+        const str = String(val);
+        if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const rows = allCrossRows.map((r, i) => {
+        const poVal = r[8] || 0;
+        const grnVal = r[10] || 0;
+        const gapVal = poVal - grnVal;
+        const fr = poVal ? (grnVal / poVal) * 100 : 0;
+
+        return [
+          i + 1,
+          escapeCsv(r[12]),
+          escapeCsv(fmtYMD(r[11])),
+          escapeCsv(d.dims.month[r[0]] || ""),
+          escapeCsv(d.dims.trade[r[1]] || ""),
+          escapeCsv(d.dims.region[r[2]] || ""),
+          escapeCsv(d.dims.city[r[3]] || ""),
+          escapeCsv(d.dims.category[r[4]] || ""),
+          escapeCsv(d.dims.sku[r[6]] || ""),
+          escapeCsv(skuGroupCode[r[6]] || "—"),
+          escapeCsv(skuGroupName[r[6]] || d.dims.sku[r[6]] || ""),
+          escapeCsv(d.dims.status[r[5]] || ""),
+          r[7] ?? 0,
+          poVal.toFixed(2),
+          r[9] ?? 0,
+          grnVal.toFixed(2),
+          gapVal.toFixed(2),
+          fr.toFixed(1)
+        ].join(",");
+      });
+
+      const csvContent = [headers.join(","), ...rows].join("\r\n");
+      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `FR_Raw_Data_Filtered${getFileDateTag()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert("Failed to export CSV: " + (e?.message || e));
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const exportSingleTable = async (t: (typeof tables)[number]) => {
+    if (!d) return;
+    setExporting(t.key);
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.utils.book_new();
+      const sheetRows = getTableExportRows(t);
+      const ws = XLSX.utils.json_to_sheet(sheetRows);
+      const cleanTitle = t.title.replace(/[:\\\/\?\*\[\]]/g, "-").slice(0, 31);
+      XLSX.utils.book_append_sheet(wb, ws, cleanTitle);
+      XLSX.writeFile(wb, `FR_${t.title.replace(/\s+/g, "_")}${getFileDateTag()}.xlsx`);
+    } catch (e: any) {
+      alert("Failed to export table: " + (e?.message || e));
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl">
       <div className="flex items-end justify-between flex-wrap gap-3">
@@ -685,7 +1060,118 @@ export default function FrySummaryPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* EXPORT DATA DROPDOWN */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setExportMenuOpen((v) => !v)}
+              disabled={!!exporting}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-sm transition disabled:opacity-50"
+              title="Export filtered data based on selected filters"
+            >
+              {exporting ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  <span>Exporting…</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-base">📊</span>
+                  <span>Export Data</span>
+                  <span className="text-[10px] ml-0.5">▾</span>
+                </>
+              )}
+            </button>
+
+            {exportMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setExportMenuOpen(false)}
+                />
+                <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white border border-slate-200 rounded-xl shadow-2xl p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-3 py-2 border-b border-slate-100">
+                    <div className="font-extrabold text-slate-800 text-xs flex items-center justify-between">
+                      <span>Export Filtered FR Data</span>
+                      <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                        {L(allCrossRows.length, 0)} lines
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Export data matching your active filters and date range.
+                    </p>
+                  </div>
+
+                  <div className="py-1 space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExportMenuOpen(false);
+                        exportAllSummaryWorkbook();
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-emerald-50 flex items-start gap-2.5 transition text-slate-800"
+                    >
+                      <span className="text-base">📑</span>
+                      <div>
+                        <div className="font-bold text-slate-900">Summary Tables Workbook (.xlsx)</div>
+                        <div className="text-[10px] text-slate-500">6 Sheets (City, SKU, Trade, Region, Category, Depo) with totals</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExportMenuOpen(false);
+                        exportFullComprehensiveWorkbook();
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-indigo-50 flex items-start gap-2.5 transition text-slate-800"
+                    >
+                      <span className="text-base">📦</span>
+                      <div>
+                        <div className="font-bold text-slate-900">All-in-One Master Workbook (.xlsx)</div>
+                        <div className="text-[10px] text-slate-500">Overview + 6 Summary Tables + Raw PO Line Items in 1 file</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExportMenuOpen(false);
+                        exportFilteredRawDataXlsx();
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-blue-50 flex items-start gap-2.5 transition text-slate-800"
+                    >
+                      <span className="text-base">📋</span>
+                      <div>
+                        <div className="font-bold text-slate-900">Filtered Raw PO Data (.xlsx)</div>
+                        <div className="text-[10px] text-slate-500">Row-by-row line items with PO numbers, dates, values & FR%</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExportMenuOpen(false);
+                        exportFilteredRawDataCsv();
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-100 flex items-start gap-2.5 transition text-slate-800"
+                    >
+                      <span className="text-base">📄</span>
+                      <div>
+                        <div className="font-bold text-slate-900">Filtered Raw PO Data (.csv)</div>
+                        <div className="text-[10px] text-slate-500">Standard CSV file matching active filters</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           <UploadButton variant="light" />
         </div>
       </div>
@@ -1100,6 +1586,29 @@ export default function FrySummaryPage() {
                       +
                     </button>
                   </span>
+
+                  <button
+                    type="button"
+                    onClick={() => exportSingleTable(t)}
+                    disabled={!!exporting}
+                    title={`Export ${t.title} to Excel`}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-300 text-[11px] font-bold text-black bg-white hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-900 transition shadow-xs disabled:opacity-50"
+                  >
+                    {exporting === t.key ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3 text-emerald-700" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        <span>Exporting…</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>⬇</span>
+                        <span>Excel</span>
+                      </>
+                    )}
+                  </button>
 
                   <button
                     type="button"

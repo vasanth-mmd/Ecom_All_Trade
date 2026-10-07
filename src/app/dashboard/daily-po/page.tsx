@@ -659,11 +659,10 @@ export default function DailyPoTrackerPage() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status))))
       .then((data) => {
         setD(data);
-        // Default to MTD for the latest date in data
+        // Default to all dates (full date range visible)
         if (data?.meta?.date_max) {
-          const max = data.meta.date_max as string;
-          setFFrom(max.slice(0, 7) + "-01");
-          setFTo(max);
+          setFFrom("");
+          setFTo("");
         }
         // Default to all statuses available for multi-select filtering
         if (data?.dims?.status) {

@@ -58,16 +58,6 @@ export default function OverviewPage() {
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status))))
         .then((data) => {
           setD(data);
-          // Pre-select the 3 core statuses (EXPIRED, COMPLETED, GRN_DONE)
-          if (data?.dims?.status) {
-            const idxs = data.dims.status
-              .map((s: string, i: number) => ({ s: s.trim().toUpperCase(), i }))
-              .filter((x: any) => x.s === "EXPIRED" || x.s === "COMPLETED" || x.s === "GRN_DONE")
-              .map((x: any) => x.i);
-            if (idxs.length > 0) {
-              setSel((prev) => (prev.status.length === 0 ? { ...prev, status: idxs } : prev));
-            }
-          }
         })
         .catch((e) => setErr(String(e.message || e)));
     load();
