@@ -10,6 +10,7 @@ const items = [
   { href: "/dashboard", label: "Overview", icon: "▦" },
   { href: "/dashboard/priority-po", label: "Priority PO Dispatch", icon: "🚨" },
   { href: "/dashboard/opportunity", label: "Opportunity Dashboard", icon: "🎯" },
+  { href: "/dashboard/opportunity/city-sku", label: "City & SKU Opportunity Loss", icon: "📉" },
   { href: "/dashboard/trending-analysis", label: "Trending Analysis", icon: "📈" },
   { href: "/dashboard/heatmap", label: "Heatmap Matrix", icon: "🔥" },
   { href: "/dashboard/full", label: "Full Dashboard", icon: "📊" },
@@ -150,7 +151,11 @@ export default function SideNav({ email }: { email: string }) {
         <nav className="px-3 py-2 space-y-1 flex-1 overflow-y-auto min-h-0">
           {items.map((it) => {
             const active =
-              it.href === "/dashboard" ? path === "/dashboard" : path.startsWith(it.href);
+              it.href === "/dashboard"
+                ? path === "/dashboard"
+                : it.href === "/dashboard/opportunity"
+                ? path === "/dashboard/opportunity"
+                : path.startsWith(it.href);
             return (
               <Link
                 key={it.href}
