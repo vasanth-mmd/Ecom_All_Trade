@@ -8,7 +8,8 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
-    "prisma:deploy": "prisma migrate deploy"
+    "prisma:deploy": "prisma migrate deploy",
+    "blinkit:open-po": "node scripts/blinkit-open-po.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

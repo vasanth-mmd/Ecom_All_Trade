@@ -78,6 +78,9 @@ const STATUS_GROUP_B = new Set([
   "ZERO_SUPPLY_PO",
   "ZERO_SUPPLY",
   "UNSUPPLIED",
+  "OPEN_PO",
+  "OPEN",
+  "OPEN_POS",
 ]);
 const normStatus = (s: string) => s.trim().toUpperCase().replace(/[\s-]+/g, "_");
 

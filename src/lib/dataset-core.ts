@@ -41,19 +41,32 @@ export function normalizeStatus(raw: any): string {
     lower === "po fully supplied" ||
     lower === "completed" ||
     lower === "grn_done" ||
-    lower === "grn done"
+    lower === "grn done" ||
+    lower === "po fully serviced" ||
+    lower === "fully serviced"
   ) {
     return "Fully Supplied Po";
   }
   if (
     lower === "partially supplied po" ||
     lower === "partially supplied" ||
-    lower === "po partially supplied"
+    lower === "po partially supplied" ||
+    lower === "po partially serviced" ||
+    lower === "partially serviced"
   ) {
     return "Partially Supplied Po";
   }
-  if (lower === "zero supply po" || lower === "zero supply" || lower === "unsupplied") {
+  if (
+    lower === "zero supply po" ||
+    lower === "zero supply" ||
+    lower === "unsupplied" ||
+    lower === "zero fill po" ||
+    lower === "zero fill"
+  ) {
     return "Zero Supply Po";
+  }
+  if (lower === "open po" || lower === "open" || lower === "open pos") {
+    return "Open Po";
   }
   if (lower === "expired") {
     return "Expired";
@@ -424,13 +437,19 @@ export function buildFromRecords(recs: any[]): Dataset {
     ]);
     const poExpiry = toYMD(poExpiryRaw);
 
+    // D-2 Concept for Blinkit: PO Expiry Date above cutoff date (e.g. > 23 / 20261023) is considered an Open PO
+    let finalStatus = status;
+    if (tradeVal.toLowerCase().includes("blinkit") && poExpiry > 20261023) {
+      finalStatus = "Open Po";
+    }
+
     rows.push([
       id("month", monthVal),
       id("trade", tradeVal),
       id("region", regionVal),
       id("city", cityVal),
       id("category", catVal),
-      id("status", status),
+      id("status", finalStatus),
       id("sku", skuVal),
       poQty,
       poVal,

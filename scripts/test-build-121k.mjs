@@ -32,6 +32,9 @@ function normalizeStatus(raw) {
   if (lower === "zero supply po" || lower === "zero supply") {
     return "Zero Supply Po";
   }
+  if (lower === "open po" || lower === "open" || lower === "open pos") {
+    return "Open Po";
+  }
   if (lower === "expired") {
     return "Expired";
   }

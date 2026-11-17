@@ -106,14 +106,17 @@ export default function Ticker() {
           : p.statusBreakdown.filter((sb) => DEFAULT_3_STATUSES.has(sb.status.trim().toUpperCase()));
 
         for (const sb of activeStatusItems) {
+          const sUpper = sb.status.toUpperCase();
           const isDone =
-            sb.status.toUpperCase() === "COMPLETED" ||
-            sb.status.toUpperCase() === "GRN_DONE" ||
-            sb.status.toUpperCase() === "FULLY SUPPLIED";
-          const isExp = sb.status.toUpperCase() === "EXPIRED";
+            sUpper === "COMPLETED" ||
+            sUpper === "GRN_DONE" ||
+            sUpper.includes("FULLY SUPPLIED") ||
+            sUpper.includes("FULLY SERVICED");
+          const isExp = sUpper === "EXPIRED";
+          const isOpen = sUpper.includes("OPEN");
 
           list.push({
-            label: `${isDone ? "✓ " : isExp ? "🚨 " : "• "}${sb.status.toUpperCase()}`,
+            label: `${isDone ? "✓ " : isExp ? "🚨 " : isOpen ? "⏳ " : "• "}${sb.status.toUpperCase()}`,
             value: `₹${L2(sb.grnVal > 0 ? sb.grnVal : sb.poVal)} L`,
             delta: `${sb.poCount} POs · ${sb.frVal.toFixed(0)}% FR`,
             up: isDone ? true : isExp ? false : null,
@@ -207,8 +210,8 @@ export default function Ticker() {
                 statusName !== "COMPLETED" &&
                 statusName !== "GRN_DONE" &&
                 statusName !== "EXPIRED" &&
-                statusName !== "FULLY SUPPLIED" &&
-                statusName !== "PO FULLY SUPPLIED"
+                !statusName.includes("FULLY SUPPLIED") &&
+                !statusName.includes("FULLY SERVICED")
               ) {
                 continue;
               }
